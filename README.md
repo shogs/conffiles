@@ -1,0 +1,2 @@
+# conffiles
+Configuration files
