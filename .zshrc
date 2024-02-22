@@ -116,6 +116,7 @@ eval "$(fnm env --use-on-cd)"
 
 alias rw="yarn rw"
 alias cap="yarn cap"
+# alias ll="ls -al"
 
 bindkey '^ ' autosuggest-accept
 #bindkey '^I' autosuggest-accept
