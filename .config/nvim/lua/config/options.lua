@@ -44,3 +44,40 @@ vim.api.nvim_set_keymap("n", "<C-p>", "<C-p><cmd>bprev<CR>", { noremap = true, s
 --vim.o.expandtab = true -- Pressing the TAB key will insert spaces instead of a TAB character
 --vim.o.softtabstop = 4 -- Number of spaces inserted instead of a TAB character
 --vim.o.shiftwidth = 4 -- Number of spaces inserted when indenting
+
+vim.api.nvim_create_autocmd("LspAttach", {
+  group = vim.api.nvim_create_augroup("UserLspConfig", {}),
+  callback = function(ev)
+    --enable omnifunc completion
+    vim.bo[ev.buf].omnifunc = "v:lua.vim.lsp.omnifunc"
+
+    -- buffer local mappings
+    local opts = { buffer = ev.buf }
+    -- go to definition
+    vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
+    --puts doc header info into a float page
+    vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
+
+    -- workspace management. Necessary for multi-module projects
+    vim.keymap.set("n", "<space>wa", vim.lsp.buf.add_workspace_folder, opts)
+    vim.keymap.set("n", "<space>wr", vim.lsp.buf.remove_workspace_folder, opts)
+    vim.keymap.set("n", "<space>wl", function()
+      print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+    end, opts)
+
+    -- add LSP code actions
+    vim.keymap.set({ "n", "v" }, "<space>ca", vim.lsp.buf.code_action, opts)
+
+    -- find references of a type
+    vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
+  end,
+})
+
+vim.api.nvim_create_autocmd("BufWritePre", {
+  pattern = "*.swift",
+  callback = function()
+    local current_file = vim.fn.expand("%")
+    vim.cmd("silent !swiftformat " .. current_file)
+    vim.cmd("edit!")
+  end,
+})
