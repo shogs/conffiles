@@ -81,3 +81,11 @@ vim.api.nvim_create_autocmd("BufWritePre", {
     vim.cmd("edit!")
   end,
 })
+
+-- vim.api.nvim_create_autocmd("FileType", {
+--   pattern = "swift",
+--   callback = function()
+--     -- This sets the comment string for the current buffer only when the file type is Swift
+--     vim.api.nvim_buf_set_var(0, "minicomment_commentstring", "// %s")
+--   end,
+-- })

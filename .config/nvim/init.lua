@@ -10,3 +10,5 @@ require("lspconfig").sourcekit.setup({
   cmd = { "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/sourcekit-lsp" },
   settings = {},
 })
+
+vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, { pattern = "*.swift", command = "set filetype=swift" })
