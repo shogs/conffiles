@@ -126,11 +126,15 @@ export CDPATH=".:${HOME}/Projects"
 # bit
 case ":$PATH:" in
   *":/Users/sash/bin:"*) ;;
-  *) export PATH="$PATH:/Users/sash/bin" ;;
+  *) export PATH="$PATH:$HOME/bin" ;;
 esac
 # bit end
 
+export PATH="$PATH:$HOME/.local/bin"
+
 export PYENV_ROOT="$HOME/.pyenv"
-command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+#command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init --path)"
 eval "$(pyenv init -)"
 # eval "$(fzf --zsh)"
