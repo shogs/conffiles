@@ -11,6 +11,7 @@ return {
         "Module",
         "Method",
         "Struct",
+        "Variable",
       },
     },
   },
