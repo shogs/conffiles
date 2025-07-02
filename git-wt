@@ -1,0 +1,395 @@
+#!/bin/bash
+# git-wt - Git subcommand for worktree management
+# Place this file in your PATH as 'git-wt' (executable)
+# Usage: git wt <command> [args...]
+
+# =============================================================================
+# GIT WT SUBCOMMAND - Usage: git wt <command>
+# =============================================================================
+
+# Colors for output (with detection)
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && tput colors >/dev/null 2>&1 && (( $(tput colors) >= 8 )); then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    NC=''
+fi
+
+show_help() {
+    echo -e "${BLUE}Git Worktree Management - Usage: git wt <command>${NC}"
+    echo ""
+    echo -e "${GREEN}📋 Available Commands:${NC}"
+    echo -e "  ${BLUE}new${NC} [branch-name] [base-branch]     - Create new worktree"
+    echo -e "  ${BLUE}list${NC}                              - List all worktrees" 
+    echo -e "  ${BLUE}switch${NC} <branch-name>               - Switch to worktree"
+    echo -e "  ${BLUE}resume${NC} <branch-name>               - Resume work in worktree"
+    echo -e "  ${BLUE}status${NC}                             - Show overall status"
+    echo -e "  ${BLUE}clean${NC}                              - Clean up worktrees"
+    echo -e "  ${BLUE}task${NC} 'description' [branch]        - Create worktree + start Claude task"
+    echo -e "  ${BLUE}help${NC}                               - Show this help"
+    echo ""
+    echo -e "${YELLOW}📁 Structure: All worktrees are created in .worktrees/ (auto-gitignored)${NC}"
+    echo -e "${YELLOW}🔗 Integration: Works seamlessly with Claude Code slash commands${NC}"
+    echo ""
+    echo -e "${GREEN}Examples:${NC}"
+    echo "  git wt new auth-feature"
+    echo "  git wt task 'Add JWT authentication'"
+    echo "  git wt switch auth-feature"
+    echo "  git wt list"
+}
+
+ensure_git_repo() {
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        echo -e "${RED}❌ Not in a git repository${NC}"
+        exit 1
+    fi
+}
+
+setup_worktrees_dir() {
+    # Create .worktrees directory if it doesn't exist
+    mkdir -p .worktrees
+    
+    # Add .worktrees to .gitignore if not already there
+    if ! grep -q "^\.worktrees/" .gitignore 2>/dev/null; then
+        echo ".worktrees/" >> .gitignore
+        echo -e "${GREEN}📝 Added .worktrees/ to .gitignore${NC}"
+    fi
+}
+
+cmd_new() {
+    local branch_name="${1:-task-$(date +%Y%m%d-%H%M%S)}"
+    local base_branch="${2:-main}"
+    local worktree_dir=".worktrees/${branch_name}"
+    
+    ensure_git_repo
+    setup_worktrees_dir
+    
+    echo -e "${BLUE}🚀 Creating new worktree...${NC}"
+    echo "Branch: $branch_name"
+    echo "Base: $base_branch"
+    echo "Directory: $worktree_dir"
+    
+    # Create the worktree in organized structure
+    git worktree add -b "$branch_name" "$worktree_dir" "$base_branch"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Worktree created successfully!${NC}"
+        echo -e "${BLUE}📂 Directory: $(realpath $worktree_dir)${NC}"
+        
+        # Create a .claude-session file for session management
+        echo "branch=$branch_name" > "$worktree_dir/.claude-session"
+        echo "created=$(date -Iseconds)" >> "$worktree_dir/.claude-session"
+        echo "base_branch=$base_branch" >> "$worktree_dir/.claude-session"
+        
+        echo ""
+        echo "Next steps:"
+        echo "1. cd $worktree_dir"
+        echo "2. claude code 'your task description'"
+        echo ""
+        echo "Or use: git wt switch $branch_name"
+    else
+        echo -e "${RED}❌ Failed to create worktree${NC}"
+        exit 1
+    fi
+}
+
+cmd_list() {
+    ensure_git_repo
+    
+    echo -e "${BLUE}📋 Git Worktrees${NC}"
+    echo "========================"
+    
+    if [ ! -d ".worktrees" ]; then
+        echo "No .worktrees directory found"
+        return 0
+    fi
+    
+    local found_any=false
+    for worktree_dir in .worktrees/*/; do
+        if [ -d "$worktree_dir" ]; then
+            found_any=true
+            local branch_name=$(basename "$worktree_dir")
+            local relative_path="$worktree_dir"
+            
+            echo ""
+            echo -e "${GREEN}🌿 Branch: $branch_name${NC}"
+            echo -e "${BLUE}📁 Path: $relative_path${NC}"
+            
+            # Get commit info
+            if [ -d "$worktree_dir/.git" ] || [ -f "$worktree_dir/.git" ]; then
+                cd "$worktree_dir"
+                local commit_info=$(git log -1 --format='%h %s' 2>/dev/null || echo 'No commits')
+                echo "💾 Commit: $commit_info"
+                
+                # Check session info if available
+                if [ -f ".claude-session" ]; then
+                    local created=$(grep "created=" .claude-session | cut -d'=' -f2)
+                    local task=$(grep "^task=" .claude-session | cut -d'=' -f2-)
+                    echo "⏰ Created: $created"
+                    if [ -n "$task" ]; then
+                        echo "📝 Task: $task"
+                    fi
+                fi
+                
+                # Check for uncommitted changes
+                if ! git diff-index --quiet HEAD 2>/dev/null; then
+                    echo -e "${YELLOW}🔄 Status: Has uncommitted changes${NC}"
+                else
+                    echo -e "${GREEN}✅ Status: Clean${NC}"
+                fi
+                cd - > /dev/null
+            fi
+        fi
+    done
+    
+    if [ "$found_any" != true ]; then
+        echo "No worktrees found in .worktrees/"
+    fi
+}
+
+cmd_switch() {
+    local branch_name="$1"
+    
+    ensure_git_repo
+    
+    if [ -z "$branch_name" ]; then
+        echo "Available worktrees:"
+        cmd_list
+        echo ""
+        echo "Usage: git wt switch <branch-name>"
+        exit 1
+    fi
+    
+    local worktree_path=".worktrees/$branch_name"
+    
+    if [ -d "$worktree_path" ]; then
+        echo -e "${BLUE}🔄 Switching to worktree: $branch_name${NC}"
+        cd "$worktree_path"
+        
+        # Show current session info
+        if [ -f ".claude-session" ]; then
+            echo -e "${BLUE}📋 Session info:${NC}"
+            cat .claude-session
+        fi
+        
+        echo ""
+        echo "Current directory: $(pwd)"
+        echo "Git status:"
+        git status --short
+        
+        # Start a new shell in the worktree directory
+        echo ""
+        echo -e "${GREEN}Starting new shell in worktree. Type 'exit' to return.${NC}"
+        $SHELL
+    else
+        echo -e "${RED}❌ Worktree '$branch_name' not found in .worktrees/${NC}"
+        echo "Available worktrees:"
+        ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
+        exit 1
+    fi
+}
+
+cmd_resume() {
+    local branch_name="$1"
+    
+    ensure_git_repo
+    
+    if [ -z "$branch_name" ]; then
+        echo "Available worktrees to resume:"
+        ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
+        echo ""
+        echo "Usage: git wt resume <branch-name>"
+        exit 1
+    fi
+    
+    if [ ! -d ".worktrees/$branch_name" ]; then
+        echo -e "${RED}❌ Worktree '$branch_name' not found${NC}"
+        exit 1
+    fi
+    
+    cd ".worktrees/$branch_name"
+    
+    echo -e "${BLUE}🔄 Resuming work in: $branch_name${NC}"
+    
+    # Show session info if available
+    if [ -f ".claude-session" ]; then
+        echo -e "${BLUE}📋 Previous session:${NC}"
+        cat .claude-session | while IFS='=' read key value; do
+            case $key in
+                task) echo "  Task: $value" ;;
+                created) echo "  Created: $value" ;;
+                branch) echo "  Branch: $value" ;;
+                base_branch) echo "  Base: $value" ;;
+            esac
+        done
+        echo ""
+    fi
+    
+    echo "Current status:"
+    git status --short
+    echo ""
+    echo "Ready to continue work in $(pwd)"
+    
+    # Start a new shell in the worktree directory
+    echo -e "${GREEN}Starting new shell in worktree. Type 'exit' to return.${NC}"
+    $SHELL
+}
+
+cmd_status() {
+    ensure_git_repo
+    
+    echo -e "${BLUE}📊 Git Worktrees Status${NC}"
+    echo "================================"
+    
+    # Show current location
+    echo "📍 Current location: $(pwd)"
+    if [[ "$(pwd)" == *".worktrees/"* ]]; then
+        echo "   You are currently in a worktree"
+    else
+        echo "   You are in the main repository"
+    fi
+    echo ""
+    
+    # Show all worktrees with detailed status
+    cmd_list
+    
+    echo ""
+    echo -e "${BLUE}📈 Summary:${NC}"
+    local total_worktrees=$(ls -1d .worktrees/*/ 2>/dev/null | wc -l)
+    echo "   Total worktrees: $total_worktrees"
+    
+    # Count worktrees with changes
+    local dirty_count=0
+    for worktree_dir in .worktrees/*/; do
+        if [ -d "$worktree_dir" ]; then
+            cd "$worktree_dir"
+            if ! git diff-index --quiet HEAD 2>/dev/null; then
+                ((dirty_count++))
+            fi
+            cd - > /dev/null
+        fi
+    done
+    echo "   With changes: $dirty_count"
+    echo "   Clean: $((total_worktrees - dirty_count))"
+}
+
+cmd_clean() {
+    ensure_git_repo
+    
+    echo -e "${YELLOW}🧹 Git worktree cleanup${NC}"
+    echo ""
+    
+    if [ ! -d ".worktrees" ]; then
+        echo "No .worktrees directory found"
+        return 0
+    fi
+    
+    echo "Current worktrees in .worktrees/:"
+    cmd_list
+    echo ""
+    
+    # Show merged branches that can be cleaned up
+    echo "Branches that have been merged to main:"
+    git branch --merged main 2>/dev/null | grep -E "(task-|feature-|fix-)" | sed 's/^[ *]*//' | while read branch; do
+        if [ -d ".worktrees/$branch" ]; then
+            echo "  📁 $branch (in .worktrees/)"
+        fi
+    done
+    echo ""
+    
+    read -p "Enter branch name to remove (or 'auto' for all merged): " branch_name
+    
+    if [ "$branch_name" = "auto" ]; then
+        # Auto-cleanup merged branches
+        git branch --merged main 2>/dev/null | grep -E "(task-|feature-|fix-)" | sed 's/^[ *]*//' | while read branch; do
+            if [ "$branch" != "main" ] && [ "$branch" != "master" ] && [ -d ".worktrees/$branch" ]; then
+                echo -e "${YELLOW}🗑️  Removing worktree for branch: $branch${NC}"
+                git worktree remove ".worktrees/$branch" 2>/dev/null || true
+                git branch -d "$branch" 2>/dev/null || true
+            fi
+        done
+    elif [ -n "$branch_name" ]; then
+        # Remove specific branch
+        if [ -d ".worktrees/$branch_name" ]; then
+            git worktree remove ".worktrees/$branch_name"
+            git branch -d "$branch_name"
+            echo -e "${GREEN}✅ Removed worktree: $branch_name${NC}"
+        else
+            echo -e "${RED}❌ Branch $branch_name not found in .worktrees/${NC}"
+        fi
+    fi
+}
+
+cmd_task() {
+    local task_description="$1"
+    local branch_name="${2:-task-$(date +%Y%m%d-%H%M%S)}"
+    
+    if [ -z "$task_description" ]; then
+        echo "Usage: git wt task 'task description' [branch-name]"
+        echo "Example: git wt task 'Add user authentication system' auth-feature"
+        exit 1
+    fi
+    
+    ensure_git_repo
+    
+    # Create the worktree
+    cmd_new "$branch_name"
+    
+    if [ $? -eq 0 ]; then
+        # Switch to the new worktree
+        cd ".worktrees/$branch_name"
+        
+        # Save task description to session file
+        echo "task=$task_description" >> .claude-session
+        echo "task_started=$(date -Iseconds)" >> .claude-session
+        
+        echo -e "${BLUE}🤖 Starting Claude Code task in worktree...${NC}"
+        echo "Task: $task_description"
+        echo ""
+        
+        # Start Claude Code with the task
+        claude code "$task_description"
+    fi
+}
+
+# =============================================================================
+# MAIN COMMAND DISPATCHER
+# =============================================================================
+
+case "${1:-help}" in
+    "new")
+        shift
+        cmd_new "$@"
+        ;;
+    "list"|"ls")
+        cmd_list
+        ;;
+    "switch"|"sw")
+        shift
+        cmd_switch "$@"
+        ;;
+    "resume"|"re")
+        shift
+        cmd_resume "$@"
+        ;;
+    "status"|"st")
+        cmd_status
+        ;;
+    "clean"|"cleanup")
+        cmd_clean
+        ;;
+    "task"|"tk")
+        shift
+        cmd_task "$@"
+        ;;
+    "help"|"-h"|"--help"|*)
+        show_help
+        ;;
+esac
