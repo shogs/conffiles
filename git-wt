@@ -83,10 +83,10 @@ cmd_new() {
         echo -e "${GREEN}✅ Worktree created successfully!${NC}"
         echo -e "${BLUE}📂 Directory: $(realpath $worktree_dir)${NC}"
         
-        # Create a .claude-session file for session management
-        echo "branch=$branch_name" > "$worktree_dir/.claude-session"
-        echo "created=$(date -Iseconds)" >> "$worktree_dir/.claude-session"
-        echo "base_branch=$base_branch" >> "$worktree_dir/.claude-session"
+        # Create a .git-wt-session file for session management
+        echo "branch=$branch_name" > "$worktree_dir/.git-wt-session"
+        echo "created=$(date -Iseconds)" >> "$worktree_dir/.git-wt-session"
+        echo "base_branch=$base_branch" >> "$worktree_dir/.git-wt-session"
         
         echo ""
         echo "Next steps:"
@@ -129,9 +129,9 @@ cmd_list() {
                 echo "💾 Commit: $commit_info"
                 
                 # Check session info if available
-                if [ -f ".claude-session" ]; then
-                    local created=$(grep "created=" .claude-session | cut -d'=' -f2)
-                    local task=$(grep "^task=" .claude-session | cut -d'=' -f2-)
+                if [ -f ".git-wt-session" ]; then
+                    local created=$(grep "created=" .git-wt-session | cut -d'=' -f2)
+                    local task=$(grep "^task=" .git-wt-session | cut -d'=' -f2-)
                     echo "⏰ Created: $created"
                     if [ -n "$task" ]; then
                         echo "📝 Task: $task"
@@ -174,9 +174,9 @@ cmd_switch() {
         cd "$worktree_path"
         
         # Show current session info
-        if [ -f ".claude-session" ]; then
+        if [ -f ".git-wt-session" ]; then
             echo -e "${BLUE}📋 Session info:${NC}"
-            cat .claude-session
+            cat .git-wt-session
         fi
         
         echo ""
@@ -219,9 +219,9 @@ cmd_resume() {
     echo -e "${BLUE}🔄 Resuming work in: $branch_name${NC}"
     
     # Show session info if available
-    if [ -f ".claude-session" ]; then
+    if [ -f ".git-wt-session" ]; then
         echo -e "${BLUE}📋 Previous session:${NC}"
-        cat .claude-session | while IFS='=' read key value; do
+        cat .git-wt-session | while IFS='=' read key value; do
             case $key in
                 task) echo "  Task: $value" ;;
                 created) echo "  Created: $value" ;;
@@ -347,8 +347,8 @@ cmd_task() {
         cd ".worktrees/$branch_name"
         
         # Save task description to session file
-        echo "task=$task_description" >> .claude-session
-        echo "task_started=$(date -Iseconds)" >> .claude-session
+        echo "task=$task_description" >> .git-wt-session
+        echo "task_started=$(date -Iseconds)" >> .git-wt-session
         
         echo -e "${BLUE}🤖 Starting Claude Code task in worktree...${NC}"
         echo "Task: $task_description"
