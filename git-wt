@@ -26,7 +26,7 @@ show_help() {
     echo -e "${BLUE}Git Worktree Management - Usage: git wt <command>${NC}"
     echo ""
     echo -e "${GREEN}📋 Available Commands:${NC}"
-    echo -e "  ${BLUE}new${NC} [branch-name] [base-branch]       - Create new worktree"
+    echo -e "  ${BLUE}new|add${NC} [branch-name] [base-branch]    - Create new worktree"
     echo -e "  ${BLUE}list${NC} [-d]                           - List all worktrees (use -d for details)" 
     echo -e "  ${BLUE}switch${NC} [-s|--shell] <branch-name>     - Switch to worktree (optionally start shell)"
     echo -e "  ${BLUE}resume${NC} [-s|--shell] <branch-name>     - Resume work in worktree (optionally start shell)"
@@ -41,7 +41,7 @@ show_help() {
     echo -e "${YELLOW}🔗 Integration: Works seamlessly with Claude Code slash commands${NC}"
     echo ""
     echo -e "${GREEN}Examples:${NC}"
-    echo "  git wt new auth-feature"
+    echo "  git wt new auth-feature              # or: git wt add auth-feature"
     echo "  git wt task 'Add JWT authentication'"
     echo "  git wt switch auth-feature           # Lightweight switch"
     echo "  git wt switch -s auth-feature        # Switch with shell"
@@ -135,6 +135,193 @@ _modify_database_url() {
         # Replace original file
         mv "$temp_file" "$env_file"
     fi
+}
+
+_prompt_copy_node_modules() {
+    local worktree_path="$1"
+    local git_root="$2"
+    local copy_all_remaining="$3"  # Pass by reference simulation
+    
+    # Find all node_modules directories, excluding worktrees and hidden dirs
+    local node_modules_dirs=()
+    
+    while IFS= read -r -d '' dir; do
+        # Skip if already exists in worktree
+        local relative_path="${dir#$git_root/}"
+        local target_path="$worktree_path/$relative_path"
+        if [ ! -d "$target_path" ]; then
+            node_modules_dirs+=("$dir")
+        fi
+    done < <(find "$git_root" -name "node_modules" -type d -not -path "*/.worktrees/*" -not -path "*/.*" -not -path "*/node_modules/*/node_modules" -print0)
+    
+    if [ ${#node_modules_dirs[@]} -eq 0 ]; then
+        return 1  # No node_modules to copy
+    fi
+    
+    echo -e "${YELLOW}📦 Found ${#node_modules_dirs[@]} node_modules directories:${NC}"
+    for dir in "${node_modules_dirs[@]}"; do
+        local relative_path="${dir#$git_root/}"
+        echo "  • $relative_path"
+    done
+    echo ""
+    
+    local copy_list=()
+    local skip_all=false
+    
+    for dir in "${node_modules_dirs[@]}"; do
+        if [ "$skip_all" = true ]; then
+            break
+        fi
+        
+        local relative_path="${dir#$git_root/}"
+        local target_path="$worktree_path/$relative_path"
+        
+        if [ "$copy_all_remaining" = "true" ]; then
+            copy_list+=("$dir:$target_path")
+            continue
+        fi
+        
+        echo -n "Copy $relative_path? [Y/y/n/q] (Y=all, y=this, n=skip, q=quit): "
+        read -r response
+        
+        case $response in
+            [Y]|"")
+                # Yes to all remaining (default on enter)
+                copy_list+=("$dir:$target_path")
+                copy_all_remaining="true"
+                # Add all remaining directories
+                for remaining_dir in "${node_modules_dirs[@]}"; do
+                    if [[ ! " ${copy_list[*]} " =~ " ${remaining_dir}: " ]]; then
+                        local remaining_relative="${remaining_dir#$git_root/}"
+                        local remaining_target="$worktree_path/$remaining_relative"
+                        copy_list+=("$remaining_dir:$remaining_target")
+                    fi
+                done
+                break
+                ;;
+            [yY][eE][sS]|[yY])
+                # Yes to this one
+                copy_list+=("$dir:$target_path")
+                ;;
+            [nN][oO]|[nN])
+                # Skip this one
+                echo -e "${BLUE}⏭️  Skipping $relative_path${NC}"
+                ;;
+            [qQ][uU][iI][tT]|[qQ])
+                # Quit copying
+                skip_all=true
+                echo -e "${BLUE}⏭️  Quitting node_modules copying${NC}"
+                break
+                ;;
+        esac
+    done
+    
+    if [ ${#copy_list[@]} -eq 0 ]; then
+        echo -e "${BLUE}⏭️  No node_modules selected for copying${NC}"
+        return 1
+    fi
+    
+    # Export the copy list for the copy function
+    printf '%s\n' "${copy_list[@]}" > /tmp/git-wt-copy-list.$$
+    return 0
+}
+
+_copy_node_modules() {
+    # Read the copy list from temp file
+    local copy_list_file="/tmp/git-wt-copy-list.$$"
+    
+    if [ ! -f "$copy_list_file" ]; then
+        echo -e "${RED}❌ No copy list found${NC}"
+        return 1
+    fi
+    
+    local copy_pairs=()
+    while IFS= read -r line; do
+        copy_pairs+=("$line")
+    done < "$copy_list_file"
+    
+    # Clean up temp file
+    rm -f "$copy_list_file"
+    
+    if [ ${#copy_pairs[@]} -eq 0 ]; then
+        echo -e "${BLUE}⏭️  No directories to copy${NC}"
+        return 0
+    fi
+    
+    echo -e "${BLUE}📋 Copying ${#copy_pairs[@]} node_modules directories...${NC}"
+    
+    local total_copied=0
+    local total_failed=0
+    
+    for pair in "${copy_pairs[@]}"; do
+        local source="${pair%:*}"
+        local destination="${pair#*:}"
+        local relative_path="${source#$(git rev-parse --show-toplevel)/}"
+        
+        echo -e "${BLUE}📦 Copying $relative_path...${NC}"
+        
+        # Create parent directory if needed
+        mkdir -p "$(dirname "$destination")"
+        
+        if command -v rsync >/dev/null 2>&1; then
+            # Count files for this directory
+            local dir_files=$(find "$source" -type f | wc -l | tr -d ' ')
+            echo "   📊 $dir_files files to copy..."
+            
+            # Use rsync with minimal output, show progress via file count
+            rsync -a "$source/" "$destination/" &
+            local rsync_pid=$!
+            
+            # Show progress while rsync runs
+            while kill -0 $rsync_pid 2>/dev/null; do
+                if [ -d "$destination" ]; then
+                    local copied_files=$(find "$destination" -type f 2>/dev/null | wc -l | tr -d ' ')
+                    local percent=$((copied_files * 100 / dir_files))
+                    printf "\r   📋 Progress: %d%% (%d/%d files)" $percent $copied_files $dir_files
+                fi
+                sleep 0.3
+            done
+            
+            wait $rsync_pid
+            local rsync_exit=$?
+            printf "\n"
+            
+            if [ $rsync_exit -eq 0 ]; then
+                echo -e "   ${GREEN}✅ $relative_path copied successfully${NC}"
+                ((total_copied++))
+                
+                # Show size information
+                local size=$(du -sh "$destination" 2>/dev/null | cut -f1)
+                if [ -n "$size" ]; then
+                    echo -e "   ${BLUE}📊 Size: $size${NC}"
+                fi
+            else
+                echo -e "   ${RED}❌ Failed to copy $relative_path${NC}"
+                ((total_failed++))
+            fi
+        else
+            # Fallback to cp with recursive copy
+            echo "   Using cp for copying (rsync not available)..."
+            if cp -R "$source" "$destination"; then
+                echo -e "   ${GREEN}✅ $relative_path copied successfully${NC}"
+                ((total_copied++))
+            else
+                echo -e "   ${RED}❌ Failed to copy $relative_path${NC}"
+                ((total_failed++))
+            fi
+        fi
+        
+        echo ""
+    done
+    
+    # Summary
+    echo -e "${GREEN}📊 Summary: $total_copied copied successfully${NC}"
+    if [ $total_failed -gt 0 ]; then
+        echo -e "${RED}📊 $total_failed failed${NC}"
+        return 1
+    fi
+    
+    return 0
 }
 
 setup_worktrees_dir() {
@@ -352,7 +539,9 @@ cmd_switch() {
         return 1
     fi
     
-    local worktree_path=".worktrees/$branch_name"
+    # Get git root before changing directories
+    local git_root=$(git rev-parse --show-toplevel)
+    local worktree_path="$git_root/.worktrees/$branch_name"
     
     if [ -d "$worktree_path" ]; then
         echo -e "${BLUE}🔄 Switching to worktree: $branch_name${NC}"
@@ -371,7 +560,13 @@ cmd_switch() {
         echo ""
         
         if [ "$create_shell" = true ]; then
+            # Check for node_modules copying before starting shell
+            if _prompt_copy_node_modules "$worktree_path" "$git_root"; then
+                _copy_node_modules
+            fi
+            
             # Start worktree shell
+            echo ""
             echo -e "${GREEN}Starting worktree shell. Type 'exit' or use 'git wt root' to return.${NC}"
             export GIT_WT_SHELL=1
             export GIT_WT_ORIGINAL_DIR="$OLDPWD"
@@ -427,6 +622,9 @@ cmd_resume() {
         return 1
     fi
     
+    # Get git root before changing directories
+    local git_root=$(git rev-parse --show-toplevel)
+    
     cd ".worktrees/$branch_name"
     
     echo -e "${BLUE}🔄 Resuming work in: $branch_name${NC}"
@@ -451,7 +649,13 @@ cmd_resume() {
     echo "Ready to continue work in $(pwd)"
     
     if [ "$create_shell" = true ]; then
+        # Check for node_modules copying before starting shell
+        if _prompt_copy_node_modules "$(pwd)" "$git_root"; then
+            _copy_node_modules
+        fi
+        
         # Start worktree shell
+        echo ""
         echo -e "${GREEN}Starting worktree shell. Type 'exit' or use 'git wt root' to return.${NC}"
         export GIT_WT_SHELL=1
         export GIT_WT_ORIGINAL_DIR="$OLDPWD"
@@ -724,7 +928,7 @@ cmd_root() {
 # =============================================================================
 
 case "${1:-help}" in
-    "new")
+    "new"|"add")
         shift
         cmd_new "$@"
         ;;

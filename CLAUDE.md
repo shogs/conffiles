@@ -96,6 +96,8 @@ This repository includes a sophisticated git worktree management system that int
 - **Organization**: Structured approach to concurrent development
 - **Flexible modes**: Lightweight directory changes or full shell isolation
 - **Smart navigation**: Automatic shell detection and exit handling
+- **Environment isolation**: Automatic .env copying with database URL modification
+- **Dependency isolation**: Optional node_modules copying for shell sessions
 
 ## Claude Commands Integration
 
