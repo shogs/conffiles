@@ -79,10 +79,11 @@ This repository includes a sophisticated git worktree management system that int
 - **Smart shell management**: Automatic shell creation and exit handling
 
 ### Available Commands
-- `git wt new [branch-name] [base-branch]` - Create new worktree
-- `git wt list` - List all worktrees with status
+- `git wt new [branch-name] [base-branch]` - Create new worktree with .env file
+- `git wt list [-d]` - List all worktrees with status (use -d for details)
 - `git wt switch [-s|--shell] <branch-name>` - Switch to existing worktree (optionally start shell)
 - `git wt resume [-s|--shell] <branch-name>` - Resume work with context restoration (optionally start shell)
+- `git wt remove [-f|--force] <branch-name>` - Remove worktree and branch (safely)
 - `git wt root` - Switch back to repository root directory
 - `git wt status` - Show comprehensive worktree overview
 - `git wt clean` - Cleanup completed worktrees
@@ -136,9 +137,10 @@ When working on complex tasks or features that require multiple steps, Claude sh
 
 ### Plan Review Process
 1. **Save plan first** - Always create and save the plan file before proceeding
-2. **User review** - Allow user to review the saved plan file
-3. **User confirmation** - Wait for explicit user approval before implementation
-4. **Execution** - Proceed with implementation only after approval
+2. **Open in MacDown** - Automatically open the plan file in MacDown for easy review using `open -a MacDown <plan-file>`
+3. **User review** - Allow user to review the saved plan file in MacDown
+4. **User confirmation** - Wait for explicit user approval before implementation
+5. **Execution** - Proceed with implementation only after approval
 
 ### Plan File Structure
 - **Location**: `plans/` directory in repository root

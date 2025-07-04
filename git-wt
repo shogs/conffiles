@@ -27,9 +27,10 @@ show_help() {
     echo ""
     echo -e "${GREEN}📋 Available Commands:${NC}"
     echo -e "  ${BLUE}new${NC} [branch-name] [base-branch]       - Create new worktree"
-    echo -e "  ${BLUE}list${NC}                                - List all worktrees" 
+    echo -e "  ${BLUE}list${NC} [-d]                           - List all worktrees (use -d for details)" 
     echo -e "  ${BLUE}switch${NC} [-s|--shell] <branch-name>     - Switch to worktree (optionally start shell)"
     echo -e "  ${BLUE}resume${NC} [-s|--shell] <branch-name>     - Resume work in worktree (optionally start shell)"
+    echo -e "  ${BLUE}remove${NC} [-f|--force] <branch-name>     - Remove worktree and branch"
     echo -e "  ${BLUE}root${NC}                                 - Switch to repository root"
     echo -e "  ${BLUE}status${NC}                               - Show overall status"
     echo -e "  ${BLUE}clean${NC}                                - Clean up worktrees"
@@ -45,6 +46,8 @@ show_help() {
     echo "  git wt switch auth-feature           # Lightweight switch"
     echo "  git wt switch -s auth-feature        # Switch with shell"
     echo "  git wt resume -s bug-fix             # Resume with shell"
+    echo "  git wt remove auth-feature           # Remove worktree (safe)"
+    echo "  git wt remove -f old-feature         # Force remove worktree"
     echo "  git wt root                          # Return to main repo"
     echo "  git wt list"
 }
@@ -82,6 +85,58 @@ _exit_worktree_shell() {
     return 1
 }
 
+_modify_database_url() {
+    local env_file="$1"
+    local worktree_name="$2"
+    
+    if [ ! -f "$env_file" ]; then
+        return 0
+    fi
+    
+    if grep -q "^DATABASE_URL=\|^DIRECT_URL=" "$env_file"; then
+        # Create temporary file for processing
+        local temp_file=$(mktemp)
+        
+        while IFS= read -r line; do
+            if [[ $line =~ ^DATABASE_URL= ]] || [[ $line =~ ^DIRECT_URL= ]]; then
+                # Extract the URL value
+                local url_value="${line#*=}"
+                url_value="${url_value%\"}"  # Remove trailing quote
+                url_value="${url_value#\"}"  # Remove leading quote
+                local var_name="${line%%=*}"
+                
+                # Modify based on database type
+                case $url_value in
+                    postgresql://*|postgres://*)
+                        # postgresql://user:pass@host:port/dbname -> dbname-worktree
+                        modified_url=$(echo "$url_value" | sed "s|\(/[^/?]*\)$|\1-${worktree_name}|")
+                        ;;
+                    mysql://*)
+                        # mysql://user:pass@host:port/dbname -> dbname-worktree
+                        modified_url=$(echo "$url_value" | sed "s|\(/[^/?]*\)$|\1-${worktree_name}|")
+                        ;;
+                    sqlite:*)
+                        # sqlite:./file.db -> ./file-worktree.db
+                        modified_url=$(echo "$url_value" | sed "s|\(.*\)\(\.db\)|\1-${worktree_name}\2|")
+                        ;;
+                    *)
+                        # Default: try to add suffix before query params or at end
+                        modified_url=$(echo "$url_value" | sed "s|\([^?]*\)\([?].*\)\?$|\1-${worktree_name}\2|")
+                        ;;
+                esac
+                
+                echo "${var_name}=\"$modified_url\"" >> "$temp_file"
+                echo -e "${GREEN}📝 Modified ${var_name} for worktree: ${worktree_name}${NC}"
+            else
+                echo "$line" >> "$temp_file"
+            fi
+        done < "$env_file"
+        
+        # Replace original file
+        mv "$temp_file" "$env_file"
+    fi
+}
+
 setup_worktrees_dir() {
     # Create .worktrees directory if it doesn't exist
     mkdir -p .worktrees
@@ -96,7 +151,8 @@ setup_worktrees_dir() {
 cmd_new() {
     local branch_name="${1:-task-$(date +%Y%m%d-%H%M%S)}"
     local base_branch="${2:-main}"
-    local worktree_dir=".worktrees/${branch_name}"
+    local git_root=$(git rev-parse --show-toplevel)
+    local worktree_dir="$git_root/.worktrees/${branch_name}"
     
     ensure_git_repo
     setup_worktrees_dir
@@ -118,10 +174,27 @@ cmd_new() {
         echo "created=$(date -Iseconds)" >> "$worktree_dir/.git-wt-session"
         echo "base_branch=$base_branch" >> "$worktree_dir/.git-wt-session"
         
+        # Copy and modify .env file
+        local root_env="$git_root/.env"
+        local worktree_env="$worktree_dir/.env"
+        
+        if [ -f "$root_env" ]; then
+            echo -e "${BLUE}📋 Copying .env file to worktree...${NC}"
+            cp "$root_env" "$worktree_env"
+            
+            # Modify DATABASE_URL
+            _modify_database_url "$worktree_env" "$branch_name"
+            
+            echo -e "${GREEN}✅ Environment file configured for worktree${NC}"
+        else
+            echo -e "${YELLOW}⚠️  No .env file found in repository root${NC}"
+        fi
+        
         echo ""
         echo "Next steps:"
         echo "1. cd $worktree_dir"
-        echo "2. claude code 'your task description'"
+        echo "2. Your app is ready to start with isolated database"
+        echo "3. Use: claude code 'your task description'"
         echo ""
         echo "Or use: git wt switch $branch_name"
     else
@@ -131,56 +204,118 @@ cmd_new() {
 }
 
 cmd_list() {
-    ensure_git_repo
+    local show_details=false
     
-    echo -e "${BLUE}📋 Git Worktrees${NC}"
-    echo "========================"
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -d|--details)
+                show_details=true
+                shift
+                ;;
+            -*)
+                echo -e "${RED}Unknown option: $1${NC}"
+                echo "Usage: git wt list [-d|--details]"
+                return 1
+                ;;
+            *)
+                echo -e "${RED}Unexpected argument: $1${NC}"
+                echo "Usage: git wt list [-d|--details]"
+                return 1
+                ;;
+        esac
+    done
+    
+    ensure_git_repo
     
     if [ ! -d ".worktrees" ]; then
         echo "No .worktrees directory found"
         return 0
     fi
     
-    local found_any=false
-    for worktree_dir in .worktrees/*/; do
-        if [ -d "$worktree_dir" ]; then
-            found_any=true
-            local branch_name=$(basename "$worktree_dir")
-            local relative_path="$worktree_dir"
-            
-            echo ""
-            echo -e "${GREEN}🌿 Branch: $branch_name${NC}"
-            echo -e "${BLUE}📁 Path: $relative_path${NC}"
-            
-            # Get commit info
-            if [ -d "$worktree_dir/.git" ] || [ -f "$worktree_dir/.git" ]; then
-                cd "$worktree_dir"
-                local commit_info=$(git log -1 --format='%h %s' 2>/dev/null || echo 'No commits')
-                echo "💾 Commit: $commit_info"
+    if [ "$show_details" = true ]; then
+        # Show detailed output (original format)
+        echo -e "${BLUE}📋 Git Worktrees${NC}"
+        echo "========================"
+        
+        local found_any=false
+        for worktree_dir in .worktrees/*/; do
+            if [ -d "$worktree_dir" ]; then
+                found_any=true
+                local branch_name=$(basename "$worktree_dir")
+                local relative_path="$worktree_dir"
                 
-                # Check session info if available
-                if [ -f ".git-wt-session" ]; then
-                    local created=$(grep "created=" .git-wt-session | cut -d'=' -f2)
-                    local task=$(grep "^task=" .git-wt-session | cut -d'=' -f2-)
-                    echo "⏰ Created: $created"
-                    if [ -n "$task" ]; then
-                        echo "📝 Task: $task"
+                echo ""
+                echo -e "${GREEN}🌿 Branch: $branch_name${NC}"
+                echo -e "${BLUE}📁 Path: $relative_path${NC}"
+                
+                # Get commit info
+                if [ -d "$worktree_dir/.git" ] || [ -f "$worktree_dir/.git" ]; then
+                    cd "$worktree_dir"
+                    local commit_info=$(git log -1 --format='%h %s' 2>/dev/null || echo 'No commits')
+                    echo "💾 Commit: $commit_info"
+                    
+                    # Check session info if available
+                    if [ -f ".git-wt-session" ]; then
+                        local created=$(grep "created=" .git-wt-session | cut -d'=' -f2)
+                        local task=$(grep "^task=" .git-wt-session | cut -d'=' -f2-)
+                        echo "⏰ Created: $created"
+                        if [ -n "$task" ]; then
+                            echo "📝 Task: $task"
+                        fi
                     fi
+                    
+                    # Check for uncommitted changes and untracked files
+                    local git_status=$(git status --porcelain 2>/dev/null)
+                    if [ -n "$git_status" ]; then
+                        echo -e "${YELLOW}🔄 Status: Has uncommitted changes${NC}"
+                    else
+                        echo -e "${GREEN}✅ Status: Clean${NC}"
+                    fi
+                    cd - > /dev/null
+                fi
+            fi
+        done
+        
+        if [ "$found_any" != true ]; then
+            echo "No worktrees found in .worktrees/"
+        fi
+    else
+        # Show simplified output (branch, status)
+        echo -e "${BLUE}📋 Git Worktrees${NC}"
+        echo "========================"
+        echo ""
+        
+        local found_any=false
+        for worktree_dir in .worktrees/*/; do
+            if [ -d "$worktree_dir" ]; then
+                found_any=true
+                local branch_name=$(basename "$worktree_dir")
+                local status="Unknown"
+                local status_color=""
+                
+                # Get status
+                if [ -d "$worktree_dir/.git" ] || [ -f "$worktree_dir/.git" ]; then
+                    cd "$worktree_dir"
+                    # Check for both modified and untracked files
+                    local git_status=$(git status --porcelain 2>/dev/null)
+                    if [ -n "$git_status" ]; then
+                        status="Modified"
+                        status_color="${YELLOW}"
+                    else
+                        status="Clean"
+                        status_color="${GREEN}"
+                    fi
+                    cd - > /dev/null
                 fi
                 
-                # Check for uncommitted changes
-                if ! git diff-index --quiet HEAD 2>/dev/null; then
-                    echo -e "${YELLOW}🔄 Status: Has uncommitted changes${NC}"
-                else
-                    echo -e "${GREEN}✅ Status: Clean${NC}"
-                fi
-                cd - > /dev/null
+                echo -e "${GREEN}🌿 ${branch_name}${NC} - ${status_color}${status}${NC}"
             fi
+        done
+        
+        if [ "$found_any" != true ]; then
+            echo "No worktrees found in .worktrees/"
         fi
-    done
-    
-    if [ "$found_any" != true ]; then
-        echo "No worktrees found in .worktrees/"
     fi
 }
 
@@ -356,7 +491,8 @@ cmd_status() {
     for worktree_dir in .worktrees/*/; do
         if [ -d "$worktree_dir" ]; then
             cd "$worktree_dir"
-            if ! git diff-index --quiet HEAD 2>/dev/null; then
+            local git_status=$(git status --porcelain 2>/dev/null)
+            if [ -n "$git_status" ]; then
                 ((dirty_count++))
             fi
             cd - > /dev/null
@@ -445,6 +581,111 @@ cmd_task() {
     fi
 }
 
+cmd_remove() {
+    local force_remove=false
+    local branch_name=""
+    
+    ensure_git_repo
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -f|--force)
+                force_remove=true
+                shift
+                ;;
+            -*)
+                echo -e "${RED}Unknown option: $1${NC}"
+                echo "Usage: git wt remove [-f|--force] <branch-name>"
+                return 1
+                ;;
+            *)
+                branch_name="$1"
+                break
+                ;;
+        esac
+    done
+    
+    if [ -z "$branch_name" ]; then
+        echo "Available worktrees to remove:"
+        cmd_list
+        echo ""
+        echo "Usage: git wt remove [-f|--force] <branch-name>"
+        return 1
+    fi
+    
+    local git_root=$(git rev-parse --show-toplevel)
+    local worktree_path="$git_root/.worktrees/$branch_name"
+    
+    if [ ! -d "$worktree_path" ]; then
+        echo -e "${RED}❌ Worktree '$branch_name' not found in .worktrees/${NC}"
+        echo "Available worktrees:"
+        ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
+        return 1
+    fi
+    
+    # Check if currently in the worktree we're trying to remove
+    if _is_in_worktree_shell && [ "$GIT_WT_BRANCH" = "$branch_name" ]; then
+        echo -e "${RED}❌ Cannot remove worktree '$branch_name' - you are currently in its shell${NC}"
+        echo -e "${YELLOW}💡 Use 'git wt root' to exit the worktree shell first${NC}"
+        return 1
+    fi
+    
+    # Check for uncommitted changes unless force flag is used
+    if [ "$force_remove" != true ]; then
+        cd "$worktree_path"
+        local git_status=$(git status --porcelain 2>/dev/null)
+        if [ -n "$git_status" ]; then
+            echo -e "${RED}❌ Cannot remove worktree '$branch_name' - has uncommitted changes:${NC}"
+            echo ""
+            git status --short
+            echo ""
+            echo -e "${YELLOW}💡 Use 'git wt remove -f $branch_name' to force removal${NC}"
+            cd - > /dev/null
+            return 1
+        fi
+        cd - > /dev/null
+    fi
+    
+    echo -e "${YELLOW}🗑️  Removing worktree: $branch_name${NC}"
+    
+    # Remove the worktree
+    git worktree remove "$worktree_path" --force 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Worktree removed successfully${NC}"
+        
+        # Delete the branch
+        if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+            if [ "$force_remove" = true ]; then
+                git branch -D "$branch_name" 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}✅ Branch '$branch_name' deleted (forced)${NC}"
+                else
+                    echo -e "${YELLOW}⚠️  Failed to delete branch '$branch_name'${NC}"
+                fi
+            else
+                git branch -d "$branch_name" 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}✅ Branch '$branch_name' deleted${NC}"
+                else
+                    echo -e "${YELLOW}⚠️  Branch '$branch_name' not deleted - may have unmerged commits${NC}"
+                    echo -e "${YELLOW}💡 Use 'git branch -D $branch_name' to force delete${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Branch '$branch_name' not found or already deleted${NC}"
+        fi
+        
+        echo ""
+        echo -e "${BLUE}📊 Remaining worktrees:${NC}"
+        cmd_list
+    else
+        echo -e "${RED}❌ Failed to remove worktree${NC}"
+        return 1
+    fi
+}
+
 cmd_root() {
     ensure_git_repo
     
@@ -488,7 +729,8 @@ case "${1:-help}" in
         cmd_new "$@"
         ;;
     "list"|"ls")
-        cmd_list
+        shift
+        cmd_list "$@"
         ;;
     "switch"|"sw")
         shift
@@ -497,6 +739,10 @@ case "${1:-help}" in
     "resume"|"re")
         shift
         cmd_resume "$@"
+        ;;
+    "remove"|"rm")
+        shift
+        cmd_remove "$@"
         ;;
     "root"|"main")
         cmd_root

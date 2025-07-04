@@ -140,3 +140,4 @@ eval "$(pyenv init -)"
 # eval "$(fzf --zsh)"
 
 alias wt='git wt'
+#alias gwt='git wt'
