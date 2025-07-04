@@ -26,14 +26,15 @@ show_help() {
     echo -e "${BLUE}Git Worktree Management - Usage: git wt <command>${NC}"
     echo ""
     echo -e "${GREEN}📋 Available Commands:${NC}"
-    echo -e "  ${BLUE}new${NC} [branch-name] [base-branch]     - Create new worktree"
-    echo -e "  ${BLUE}list${NC}                              - List all worktrees" 
-    echo -e "  ${BLUE}switch${NC} <branch-name>               - Switch to worktree"
-    echo -e "  ${BLUE}resume${NC} <branch-name>               - Resume work in worktree"
-    echo -e "  ${BLUE}status${NC}                             - Show overall status"
-    echo -e "  ${BLUE}clean${NC}                              - Clean up worktrees"
-    echo -e "  ${BLUE}task${NC} 'description' [branch]        - Create worktree + start Claude task"
-    echo -e "  ${BLUE}help${NC}                               - Show this help"
+    echo -e "  ${BLUE}new${NC} [branch-name] [base-branch]       - Create new worktree"
+    echo -e "  ${BLUE}list${NC}                                - List all worktrees" 
+    echo -e "  ${BLUE}switch${NC} [-s|--shell] <branch-name>     - Switch to worktree (optionally start shell)"
+    echo -e "  ${BLUE}resume${NC} [-s|--shell] <branch-name>     - Resume work in worktree (optionally start shell)"
+    echo -e "  ${BLUE}root${NC}                                 - Switch to repository root"
+    echo -e "  ${BLUE}status${NC}                               - Show overall status"
+    echo -e "  ${BLUE}clean${NC}                                - Clean up worktrees"
+    echo -e "  ${BLUE}task${NC} 'description' [branch]          - Create worktree + start Claude task"
+    echo -e "  ${BLUE}help${NC}                                 - Show this help"
     echo ""
     echo -e "${YELLOW}📁 Structure: All worktrees are created in .worktrees/ (auto-gitignored)${NC}"
     echo -e "${YELLOW}🔗 Integration: Works seamlessly with Claude Code slash commands${NC}"
@@ -41,7 +42,10 @@ show_help() {
     echo -e "${GREEN}Examples:${NC}"
     echo "  git wt new auth-feature"
     echo "  git wt task 'Add JWT authentication'"
-    echo "  git wt switch auth-feature"
+    echo "  git wt switch auth-feature           # Lightweight switch"
+    echo "  git wt switch -s auth-feature        # Switch with shell"
+    echo "  git wt resume -s bug-fix             # Resume with shell"
+    echo "  git wt root                          # Return to main repo"
     echo "  git wt list"
 }
 
@@ -50,6 +54,32 @@ ensure_git_repo() {
         echo -e "${RED}❌ Not in a git repository${NC}"
         exit 1
     fi
+}
+
+_is_in_worktree_shell() {
+    [ "$GIT_WT_SHELL" = "1" ]
+}
+
+_exit_worktree_shell() {
+    if _is_in_worktree_shell; then
+        echo -e "${BLUE}🏠 Exiting worktree shell and returning to repository root...${NC}"
+        if [ -n "$GIT_WT_ORIGINAL_DIR" ] && [ -d "$GIT_WT_ORIGINAL_DIR" ]; then
+            echo "📍 Back to: $GIT_WT_ORIGINAL_DIR"
+            cd "$GIT_WT_ORIGINAL_DIR"
+        else
+            # Fallback to git root if original dir is not available
+            local git_root=$(git rev-parse --show-toplevel 2>/dev/null)
+            if [ -n "$git_root" ]; then
+                cd "$git_root"
+                echo "📍 Back to: $git_root"
+            fi
+        fi
+        echo ""
+        echo -e "${GREEN}💡 Type 'exit' to return to your original shell${NC}"
+        # Can't exit parent shell from script, user needs to type 'exit'
+        return 0
+    fi
+    return 1
 }
 
 setup_worktrees_dir() {
@@ -155,16 +185,36 @@ cmd_list() {
 }
 
 cmd_switch() {
-    local branch_name="$1"
+    local create_shell=false
+    local branch_name=""
     
     ensure_git_repo
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -s|--shell)
+                create_shell=true
+                shift
+                ;;
+            -*)
+                echo -e "${RED}Unknown option: $1${NC}"
+                echo "Usage: git wt switch [-s|--shell] <branch-name>"
+                return 1
+                ;;
+            *)
+                branch_name="$1"
+                break
+                ;;
+        esac
+    done
     
     if [ -z "$branch_name" ]; then
         echo "Available worktrees:"
         cmd_list
         echo ""
-        echo "Usage: git wt switch <branch-name>"
-        exit 1
+        echo "Usage: git wt switch [-s|--shell] <branch-name>"
+        return 1
     fi
     
     local worktree_path=".worktrees/$branch_name"
@@ -183,35 +233,63 @@ cmd_switch() {
         echo "Current directory: $(pwd)"
         echo "Git status:"
         git status --short
-        
-        # Start a new shell in the worktree directory
         echo ""
-        echo -e "${GREEN}Starting new shell in worktree. Type 'exit' to return.${NC}"
-        $SHELL
+        
+        if [ "$create_shell" = true ]; then
+            # Start worktree shell
+            echo -e "${GREEN}Starting worktree shell. Type 'exit' or use 'git wt root' to return.${NC}"
+            export GIT_WT_SHELL=1
+            export GIT_WT_ORIGINAL_DIR="$OLDPWD"
+            export GIT_WT_BRANCH="$branch_name"
+            PS1="(wt:$branch_name) $PS1" $SHELL
+        else
+            # Just change directory
+            echo -e "${GREEN}✅ Ready to work in worktree${NC}"
+        fi
     else
         echo -e "${RED}❌ Worktree '$branch_name' not found in .worktrees/${NC}"
         echo "Available worktrees:"
         ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
-        exit 1
+        return 1
     fi
 }
 
 cmd_resume() {
-    local branch_name="$1"
+    local create_shell=false
+    local branch_name=""
     
     ensure_git_repo
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -s|--shell)
+                create_shell=true
+                shift
+                ;;
+            -*)
+                echo -e "${RED}Unknown option: $1${NC}"
+                echo "Usage: git wt resume [-s|--shell] <branch-name>"
+                return 1
+                ;;
+            *)
+                branch_name="$1"
+                break
+                ;;
+        esac
+    done
     
     if [ -z "$branch_name" ]; then
         echo "Available worktrees to resume:"
         ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
         echo ""
-        echo "Usage: git wt resume <branch-name>"
-        exit 1
+        echo "Usage: git wt resume [-s|--shell] <branch-name>"
+        return 1
     fi
     
     if [ ! -d ".worktrees/$branch_name" ]; then
         echo -e "${RED}❌ Worktree '$branch_name' not found${NC}"
-        exit 1
+        return 1
     fi
     
     cd ".worktrees/$branch_name"
@@ -237,9 +315,17 @@ cmd_resume() {
     echo ""
     echo "Ready to continue work in $(pwd)"
     
-    # Start a new shell in the worktree directory
-    echo -e "${GREEN}Starting new shell in worktree. Type 'exit' to return.${NC}"
-    $SHELL
+    if [ "$create_shell" = true ]; then
+        # Start worktree shell
+        echo -e "${GREEN}Starting worktree shell. Type 'exit' or use 'git wt root' to return.${NC}"
+        export GIT_WT_SHELL=1
+        export GIT_WT_ORIGINAL_DIR="$OLDPWD"
+        export GIT_WT_BRANCH="$branch_name"
+        PS1="(wt:$branch_name) $PS1" $SHELL
+    else
+        # Just change directory
+        echo -e "${GREEN}✅ Ready to continue work in worktree${NC}"
+    fi
 }
 
 cmd_status() {
@@ -359,6 +445,39 @@ cmd_task() {
     fi
 }
 
+cmd_root() {
+    ensure_git_repo
+    
+    # Check if we're in a worktree shell and exit if so
+    if _exit_worktree_shell; then
+        return 0
+    fi
+    
+    # Regular root switching logic
+    local git_root=$(git rev-parse --show-toplevel)
+    
+    echo -e "${BLUE}🏠 Switching to repository root...${NC}"
+    cd "$git_root"
+    
+    echo "📍 Current directory: $(pwd)"
+    echo "🌿 Current branch: $(git branch --show-current)"
+    echo ""
+    
+    # Show git status
+    echo "Git status:"
+    git status --short
+    echo ""
+    
+    # Show available worktrees
+    if [ -d ".worktrees" ]; then
+        echo -e "${BLUE}📋 Available worktrees:${NC}"
+        ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
+        echo ""
+    fi
+    
+    echo -e "${GREEN}✅ Now in repository root directory${NC}"
+}
+
 # =============================================================================
 # MAIN COMMAND DISPATCHER
 # =============================================================================
@@ -378,6 +497,9 @@ case "${1:-help}" in
     "resume"|"re")
         shift
         cmd_resume "$@"
+        ;;
+    "root"|"main")
+        cmd_root
         ;;
     "status"|"st")
         cmd_status

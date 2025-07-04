@@ -138,3 +138,5 @@ export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init --path)"
 eval "$(pyenv init -)"
 # eval "$(fzf --zsh)"
+
+alias wt='git wt'

@@ -12,7 +12,7 @@ This is a personal dotfiles repository containing configuration files for variou
 - **Terminal Multiplexer**: `.tmux.conf` - Custom tmux configuration with Ctrl+a prefix
 - **Terminal Emulator**: `.wezterm.lua` - WezTerm configuration with Catppuccin theme
 - **Text Editor**: `nvim/` - LazyVim-based Neovim configuration (has its own CLAUDE.md)
-- **Git Worktree Management**: `git-wt.sh`, `git-wt` - Shell functions and git subcommand for worktree operations
+- **Git Worktree Management**: `git-wt` - Git subcommand for worktree operations
 - **Claude Commands**: `claude/commands/` - Custom Claude Code commands (symlinked to `~/.claude/commands`)
 - **macOS Window Management**: `.config/yabai/`, `.config/skhd/` - Tiling window manager and hotkeys
 - **Terminal Alternatives**: `.config/alacritty/`, `.config/kitty/` - Terminal emulator configs
@@ -73,16 +73,17 @@ This is a personal dotfiles repository containing configuration files for variou
 This repository includes a sophisticated git worktree management system that integrates with Claude Code for isolated development workflows.
 
 ### Components
-- **git-wt.sh**: Shell function library with aliases (gwtn, gwtl, gwts, etc.)
 - **git-wt**: Git subcommand (symlinked to `~/bin/git-wt`) for `git wt` usage
 - **Session tracking**: `.claude-session` files maintain work context
 - **Organized structure**: All worktrees created in `.worktrees/` directory
+- **Smart shell management**: Automatic shell creation and exit handling
 
 ### Available Commands
 - `git wt new [branch-name] [base-branch]` - Create new worktree
 - `git wt list` - List all worktrees with status
-- `git wt switch <branch-name>` - Switch to existing worktree
-- `git wt resume <branch-name>` - Resume work with context restoration
+- `git wt switch [-s|--shell] <branch-name>` - Switch to existing worktree (optionally start shell)
+- `git wt resume [-s|--shell] <branch-name>` - Resume work with context restoration (optionally start shell)
+- `git wt root` - Switch back to repository root directory
 - `git wt status` - Show comprehensive worktree overview
 - `git wt clean` - Cleanup completed worktrees
 - `git wt task 'description' [branch]` - Create worktree and start Claude task
@@ -92,6 +93,8 @@ This repository includes a sophisticated git worktree management system that int
 - **Context preservation**: Session files maintain work state
 - **Automation**: One-command task creation and Claude startup
 - **Organization**: Structured approach to concurrent development
+- **Flexible modes**: Lightweight directory changes or full shell isolation
+- **Smart navigation**: Automatic shell detection and exit handling
 
 ## Claude Commands Integration
 
@@ -102,8 +105,11 @@ Custom Claude Code commands are available via symlink from `claude/commands/` to
 - `/wt new <args>` - Create new worktree
 - `/wt task <description>` - Create worktree and start Claude task
 - `/wt list` - Show all worktrees
-- `/wt switch <branch>` - Switch to worktree
-- `/wt resume <branch>` - Resume work in worktree
+- `/wt switch <branch>` - Switch to worktree (lightweight)
+- `/wt switch-shell <branch>` - Switch to worktree with shell isolation
+- `/wt resume <branch>` - Resume work in worktree (lightweight)
+- `/wt resume-shell <branch>` - Resume work with shell isolation
+- `/wt root` - Switch back to repository root
 - `/wt status` - Show comprehensive status
 - `/wt clean` - Clean up worktrees
 
@@ -112,6 +118,35 @@ Custom Claude Code commands are available via symlink from `claude/commands/` to
 - Session files preserve context across Claude sessions
 - `git wt task` command automatically launches Claude with task context
 - Seamless integration between shell and Claude Code environments
+
+## Planning Workflow
+
+When working on complex tasks or features that require multiple steps, Claude should follow this standardized planning process:
+
+### Plan Creation and Documentation
+1. **Create detailed plans** for multi-step tasks, new features, or significant changes
+2. **Save plans immediately** to the `plans/` directory using timestamp prefix format: `YYYY-MM-DD-HHMM-description.md`
+3. **Include comprehensive details** in plans:
+   - Current analysis and problem statement
+   - Proposed solution approach
+   - Step-by-step implementation plan
+   - Expected behavior and outcomes
+   - Files to be modified
+   - Any special considerations or dependencies
+
+### Plan Review Process
+1. **Save plan first** - Always create and save the plan file before proceeding
+2. **User review** - Allow user to review the saved plan file
+3. **User confirmation** - Wait for explicit user approval before implementation
+4. **Execution** - Proceed with implementation only after approval
+
+### Plan File Structure
+- **Location**: `plans/` directory in repository root
+- **Naming**: `YYYY-MM-DD-HHMM-descriptive-name.md`
+- **Content**: Markdown format with clear sections and actionable items
+- **Purpose**: Provides documentation trail and enables thorough review
+
+This workflow ensures transparency, allows for plan refinement, and maintains a clear record of development decisions and implementation approaches.
 
 ## Aider Integration
 - Configured for dark mode terminal usage
