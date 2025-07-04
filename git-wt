@@ -181,11 +181,16 @@ _copy_database() {
     echo ""
     
     # Ask for confirmation
-    echo -n "Copy database '$original_db_name' to '$new_db_name' using psql? [y/N]: "
+    echo -n "Copy database '$original_db_name' to '$new_db_name' using psql? [Y/n]: "
     read -r response
     
     case $response in
-        [yY][eE][sS]|[yY])
+        [nN][oO]|[nN])
+            echo -e "${BLUE}⏭️  Skipping database copy${NC}"
+            return 1
+            ;;
+        *)
+            # Default to yes (Y or Enter or anything else)
             echo -e "${BLUE}📋 Creating database copy...${NC}"
             
             # Check if psql is available
@@ -243,10 +248,6 @@ _copy_database() {
                 psql "$original_db_url" -c "DROP DATABASE IF EXISTS \"$new_db_name\"" 2>/dev/null
                 return 1
             fi
-            ;;
-        *)
-            echo -e "${BLUE}⏭️  Skipping database copy${NC}"
-            return 1
             ;;
     esac
 }
@@ -400,36 +401,50 @@ _prompt_copy_node_modules() {
             continue
         fi
         
-        echo -n "Copy $relative_path? [Y/y/n/q] (Y=all, y=this, n=skip, q=quit): "
+        echo -n "$relative_path? [Y/y/s/n/q] (Y=copy all, y=yes, s=symlink all, n=skip, q=quit): "
         read -r response
         
         case $response in
             [Y]|"")
-                # Yes to all remaining (default on enter)
-                copy_list+=("$dir:$target_path")
+                # Copy all remaining (default on enter)
+                copy_list+=("copy:$dir:$target_path")
                 copy_all_remaining="true"
-                # Add all remaining directories
+                # Add all remaining directories for copying
                 for remaining_dir in "${node_modules_dirs[@]}"; do
                     if [[ ! " ${copy_list[*]} " =~ " ${remaining_dir}: " ]]; then
                         local remaining_relative="${remaining_dir#$git_root/}"
                         local remaining_target="$worktree_path/$remaining_relative"
-                        copy_list+=("$remaining_dir:$remaining_target")
+                        copy_list+=("copy:$remaining_dir:$remaining_target")
                     fi
                 done
                 break
                 ;;
             [yY][eE][sS]|[yY])
-                # Yes to this one
-                copy_list+=("$dir:$target_path")
+                # Yes - copy this one
+                copy_list+=("copy:$dir:$target_path")
+                ;;
+            [sS])
+                # Symlink all remaining
+                copy_list+=("symlink:$dir:$target_path")
+                copy_all_remaining="true"
+                # Add all remaining directories for symlinking
+                for remaining_dir in "${node_modules_dirs[@]}"; do
+                    if [[ ! " ${copy_list[*]} " =~ " ${remaining_dir}: " ]]; then
+                        local remaining_relative="${remaining_dir#$git_root/}"
+                        local remaining_target="$worktree_path/$remaining_relative"
+                        copy_list+=("symlink:$remaining_dir:$remaining_target")
+                    fi
+                done
+                break
                 ;;
             [nN][oO]|[nN])
                 # Skip this one
                 echo -e "${BLUE}⏭️  Skipping $relative_path${NC}"
                 ;;
             [qQ][uU][iI][tT]|[qQ])
-                # Quit copying
+                # Quit operations
                 skip_all=true
-                echo -e "${BLUE}⏭️  Quitting node_modules copying${NC}"
+                echo -e "${BLUE}⏭️  Quitting node_modules operations${NC}"
                 break
                 ;;
         esac
@@ -467,66 +482,90 @@ _copy_node_modules() {
         return 0
     fi
     
-    echo -e "${BLUE}📋 Copying ${#copy_pairs[@]} node_modules directories...${NC}"
+    echo -e "${BLUE}📋 Processing ${#copy_pairs[@]} node_modules directories...${NC}"
     
     local total_copied=0
+    local total_symlinked=0
     local total_failed=0
     
     for pair in "${copy_pairs[@]}"; do
-        local source="${pair%:*}"
-        local destination="${pair#*:}"
+        local operation="${pair%%:*}"
+        local remaining="${pair#*:}"
+        local source="${remaining%:*}"
+        local destination="${remaining#*:}"
         local relative_path="${source#$(git rev-parse --show-toplevel)/}"
         
-        echo -e "${BLUE}📦 Copying $relative_path...${NC}"
-        
-        # Create parent directory if needed
-        mkdir -p "$(dirname "$destination")"
-        
-        if command -v rsync >/dev/null 2>&1; then
-            # Count files for this directory
-            local dir_files=$(find "$source" -type f | wc -l | tr -d ' ')
-            echo "   📊 $dir_files files to copy..."
+        if [ "$operation" = "symlink" ]; then
+            echo -e "${BLUE}🔗 Creating symlink for $relative_path...${NC}"
             
-            # Use rsync with minimal output, show progress via file count
-            rsync -a "$source/" "$destination/" &
-            local rsync_pid=$!
+            # Create parent directory if needed
+            mkdir -p "$(dirname "$destination")"
             
-            # Show progress while rsync runs
-            while kill -0 $rsync_pid 2>/dev/null; do
-                if [ -d "$destination" ]; then
-                    local copied_files=$(find "$destination" -type f 2>/dev/null | wc -l | tr -d ' ')
-                    local percent=$((copied_files * 100 / dir_files))
-                    printf "\r   📋 Progress: %d%% (%d/%d files)" $percent $copied_files $dir_files
-                fi
-                sleep 0.3
-            done
-            
-            wait $rsync_pid
-            local rsync_exit=$?
-            printf "\n"
-            
-            if [ $rsync_exit -eq 0 ]; then
-                echo -e "   ${GREEN}✅ $relative_path copied successfully${NC}"
-                ((total_copied++))
+            # Create symlink
+            if ln -sf "$source" "$destination"; then
+                echo -e "   ${GREEN}✅ $relative_path symlinked successfully${NC}"
+                ((total_symlinked++))
                 
-                # Show size information
-                local size=$(du -sh "$destination" 2>/dev/null | cut -f1)
-                if [ -n "$size" ]; then
-                    echo -e "   ${BLUE}📊 Size: $size${NC}"
-                fi
+                # Show what it links to
+                local link_target=$(readlink "$destination")
+                echo -e "   ${BLUE}🔗 Links to: $link_target${NC}"
             else
-                echo -e "   ${RED}❌ Failed to copy $relative_path${NC}"
+                echo -e "   ${RED}❌ Failed to create symlink for $relative_path${NC}"
                 ((total_failed++))
             fi
+            
         else
-            # Fallback to cp with recursive copy
-            echo "   Using cp for copying (rsync not available)..."
-            if cp -R "$source" "$destination"; then
-                echo -e "   ${GREEN}✅ $relative_path copied successfully${NC}"
-                ((total_copied++))
+            echo -e "${BLUE}📦 Copying $relative_path...${NC}"
+            
+            # Create parent directory if needed
+            mkdir -p "$(dirname "$destination")"
+            
+            if command -v rsync >/dev/null 2>&1; then
+                # Count files for this directory
+                local dir_files=$(find "$source" -type f | wc -l | tr -d ' ')
+                echo "   📊 $dir_files files to copy..."
+                
+                # Use rsync with minimal output, show progress via file count
+                rsync -a "$source/" "$destination/" &
+                local rsync_pid=$!
+                
+                # Show progress while rsync runs
+                while kill -0 $rsync_pid 2>/dev/null; do
+                    if [ -d "$destination" ]; then
+                        local copied_files=$(find "$destination" -type f 2>/dev/null | wc -l | tr -d ' ')
+                        local percent=$((copied_files * 100 / dir_files))
+                        printf "\r   📋 Progress: %d%% (%d/%d files)" $percent $copied_files $dir_files
+                    fi
+                    sleep 0.3
+                done
+                
+                wait $rsync_pid
+                local rsync_exit=$?
+                printf "\n"
+                
+                if [ $rsync_exit -eq 0 ]; then
+                    echo -e "   ${GREEN}✅ $relative_path copied successfully${NC}"
+                    ((total_copied++))
+                    
+                    # Show size information
+                    local size=$(du -sh "$destination" 2>/dev/null | cut -f1)
+                    if [ -n "$size" ]; then
+                        echo -e "   ${BLUE}📊 Size: $size${NC}"
+                    fi
+                else
+                    echo -e "   ${RED}❌ Failed to copy $relative_path${NC}"
+                    ((total_failed++))
+                fi
             else
-                echo -e "   ${RED}❌ Failed to copy $relative_path${NC}"
-                ((total_failed++))
+                # Fallback to cp with recursive copy
+                echo "   Using cp for copying (rsync not available)..."
+                if cp -R "$source" "$destination"; then
+                    echo -e "   ${GREEN}✅ $relative_path copied successfully${NC}"
+                    ((total_copied++))
+                else
+                    echo -e "   ${RED}❌ Failed to copy $relative_path${NC}"
+                    ((total_failed++))
+                fi
             fi
         fi
         
@@ -534,9 +573,15 @@ _copy_node_modules() {
     done
     
     # Summary
-    echo -e "${GREEN}📊 Summary: $total_copied copied successfully${NC}"
+    echo -e "${GREEN}📊 Summary:${NC}"
+    if [ $total_copied -gt 0 ]; then
+        echo -e "${GREEN}   $total_copied copied successfully${NC}"
+    fi
+    if [ $total_symlinked -gt 0 ]; then
+        echo -e "${BLUE}   $total_symlinked symlinked successfully${NC}"
+    fi
     if [ $total_failed -gt 0 ]; then
-        echo -e "${RED}📊 $total_failed failed${NC}"
+        echo -e "${RED}   $total_failed failed${NC}"
         return 1
     fi
     
@@ -648,12 +693,32 @@ cmd_new() {
         fi
         
         echo ""
-        echo "Next steps:"
-        echo "1. cd $worktree_dir"
-        echo "2. Your app is ready to start with isolated database"
-        echo "3. Use: claude code 'your task description'"
+        echo -e "${GREEN}✅ Worktree created successfully!${NC}"
         echo ""
-        echo "Or use: git wt switch $branch_name"
+        
+        # Ask if user wants to switch to the new worktree
+        echo -n "Switch to the new worktree with shell? [Y/n]: "
+        read -r response
+        
+        case $response in
+            [nN][oO]|[nN])
+                echo -e "${BLUE}📋 Worktree ready for use${NC}"
+                echo ""
+                echo "Next steps:"
+                echo "1. cd $worktree_dir"
+                echo "2. Your app is ready to start with isolated database"
+                echo "3. Use: claude code 'your task description'"
+                echo ""
+                echo "Or use: git wt switch -s $branch_name"
+                ;;
+            *)
+                # Default to yes (Y or Enter or anything else)
+                echo -e "${BLUE}🔄 Switching to worktree with shell...${NC}"
+                echo ""
+                # Call the existing switch function with shell option
+                cmd_switch -s "$branch_name"
+                ;;
+        esac
     else
         echo -e "${RED}❌ Failed to create worktree${NC}"
         exit 1
