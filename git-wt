@@ -26,11 +26,11 @@ show_help() {
     echo -e "${BLUE}Git Worktree Management - Usage: git wt <command>${NC}"
     echo ""
     echo -e "${GREEN}📋 Available Commands:${NC}"
-    echo -e "  ${BLUE}new|add${NC} [branch-name] [base-branch]    - Create new worktree"
+    echo -e "  ${BLUE}new|add${NC} [-db] [branch-name] [base-branch] - Create new worktree (use -db to copy database)"
     echo -e "  ${BLUE}list${NC} [-d]                           - List all worktrees (use -d for details)" 
     echo -e "  ${BLUE}switch${NC} [-s|--shell] <branch-name>     - Switch to worktree (optionally start shell)"
     echo -e "  ${BLUE}resume${NC} [-s|--shell] <branch-name>     - Resume work in worktree (optionally start shell)"
-    echo -e "  ${BLUE}remove${NC} [-f|--force] <branch-name>     - Remove worktree and branch"
+    echo -e "  ${BLUE}remove${NC} [-f|--force] [-db] <branch-name> - Remove worktree and branch (use -db to drop database)"
     echo -e "  ${BLUE}root${NC}                                 - Switch to repository root"
     echo -e "  ${BLUE}status${NC}                               - Show overall status"
     echo -e "  ${BLUE}clean${NC}                                - Clean up worktrees"
@@ -42,12 +42,14 @@ show_help() {
     echo ""
     echo -e "${GREEN}Examples:${NC}"
     echo "  git wt new auth-feature              # or: git wt add auth-feature"
+    echo "  git wt new -db auth-feature          # Create with database copy"
     echo "  git wt task 'Add JWT authentication'"
     echo "  git wt switch auth-feature           # Lightweight switch"
     echo "  git wt switch -s auth-feature        # Switch with shell"
     echo "  git wt resume -s bug-fix             # Resume with shell"
     echo "  git wt remove auth-feature           # Remove worktree (safe)"
     echo "  git wt remove -f old-feature         # Force remove worktree"
+    echo "  git wt remove -db auth-feature       # Remove worktree and drop database"
     echo "  git wt root                          # Return to main repo"
     echo "  git wt list"
 }
@@ -134,6 +136,223 @@ _modify_database_url() {
         
         # Replace original file
         mv "$temp_file" "$env_file"
+    fi
+}
+
+_copy_database() {
+    local env_file="$1"
+    local worktree_name="$2"
+    
+    if [ ! -f "$env_file" ]; then
+        echo -e "${RED}❌ No .env file found to extract database URL${NC}"
+        return 1
+    fi
+    
+    # Extract original DATABASE_URL
+    local original_db_url=$(grep "^DATABASE_URL=" "$env_file" | head -1 | cut -d'=' -f2- | tr -d '"')
+    
+    if [ -z "$original_db_url" ]; then
+        echo -e "${RED}❌ No DATABASE_URL found in .env file${NC}"
+        return 1
+    fi
+    
+    # Check if this is a PostgreSQL URL
+    if [[ ! $original_db_url =~ ^postgresql://|^postgres:// ]]; then
+        echo -e "${YELLOW}⚠️  Database copying only supports PostgreSQL databases${NC}"
+        echo "   Found: $original_db_url"
+        return 1
+    fi
+    
+    # Extract database name from URL
+    local original_db_name=$(echo "$original_db_url" | sed 's|.*/||')
+    local new_db_name="${original_db_name}-${worktree_name}"
+    
+    if [ -z "$original_db_name" ]; then
+        echo -e "${RED}❌ Could not extract database name from URL${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}🗄️  Database copying details:${NC}"
+    echo "   Original database: $original_db_name"
+    echo "   New database: $new_db_name"
+    echo ""
+    echo -e "${YELLOW}💡 Your .env file has been updated to use the new database name.${NC}"
+    echo -e "${YELLOW}   If you skip copying, you'll need to manually create/copy the database.${NC}"
+    echo ""
+    
+    # Ask for confirmation
+    echo -n "Copy database '$original_db_name' to '$new_db_name' using psql? [y/N]: "
+    read -r response
+    
+    case $response in
+        [yY][eE][sS]|[yY])
+            echo -e "${BLUE}📋 Creating database copy...${NC}"
+            
+            # Check if psql is available
+            if ! command -v psql >/dev/null 2>&1; then
+                echo -e "${RED}❌ psql command not found. Please install PostgreSQL client tools.${NC}"
+                return 1
+            fi
+            
+            # Create new database
+            echo "Creating new database: $new_db_name"
+            local create_output=$(psql "$original_db_url" -c "CREATE DATABASE \"$new_db_name\"" 2>&1)
+            local create_exit_code=$?
+            
+            if [ $create_exit_code -eq 0 ]; then
+                echo -e "${GREEN}✅ Database created successfully${NC}"
+            else
+                echo -e "${RED}❌ Failed to create database${NC}"
+                echo "   Error: $create_output"
+                return 1
+            fi
+            
+            # Copy database using pg_dump and psql
+            echo "Copying database contents..."
+            local new_db_url=$(echo "$original_db_url" | sed "s|/[^/]*$|/${new_db_name}|")
+            
+            echo "   Source: $original_db_url"
+            echo "   Target: $new_db_url"
+            echo "   This may take a while depending on database size..."
+            
+            # Use a more verbose approach to show progress and capture errors
+            local dump_output=$(pg_dump "$original_db_url" 2>&1)
+            local dump_exit_code=$?
+            
+            if [ $dump_exit_code -ne 0 ]; then
+                echo -e "${RED}❌ Failed to dump source database${NC}"
+                echo "   Error: $dump_output"
+                # Clean up the empty database
+                psql "$original_db_url" -c "DROP DATABASE IF EXISTS \"$new_db_name\"" 2>/dev/null
+                return 1
+            fi
+            
+            echo "   Database dump completed, now restoring..."
+            local restore_output=$(echo "$dump_output" | psql "$new_db_url" 2>&1)
+            local restore_exit_code=$?
+            
+            if [ $restore_exit_code -eq 0 ]; then
+                echo -e "${GREEN}✅ Database copied successfully${NC}"
+                echo "   New database URL: $new_db_url"
+                return 0
+            else
+                echo -e "${RED}❌ Failed to restore database contents${NC}"
+                echo "   Error: $restore_output"
+                # Clean up the database with failed restore
+                echo "   Cleaning up failed database..."
+                psql "$original_db_url" -c "DROP DATABASE IF EXISTS \"$new_db_name\"" 2>/dev/null
+                return 1
+            fi
+            ;;
+        *)
+            echo -e "${BLUE}⏭️  Skipping database copy${NC}"
+            return 1
+            ;;
+    esac
+}
+
+_drop_database() {
+    local worktree_env_file="$1"
+    
+    if [ ! -f "$worktree_env_file" ]; then
+        echo -e "${YELLOW}⚠️  No .env file found in worktree${NC}"
+        return 1
+    fi
+    
+    # Extract DATABASE_URL from worktree .env file
+    local db_url=$(grep "^DATABASE_URL=" "$worktree_env_file" | head -1 | cut -d'=' -f2- | tr -d '"')
+    
+    if [ -z "$db_url" ]; then
+        echo -e "${YELLOW}⚠️  No DATABASE_URL found in worktree .env file${NC}"
+        return 1
+    fi
+    
+    # Check if this is a PostgreSQL URL
+    if [[ ! $db_url =~ ^postgresql://|^postgres:// ]]; then
+        echo -e "${YELLOW}⚠️  Database dropping only supports PostgreSQL databases${NC}"
+        echo "   Found: $db_url"
+        return 1
+    fi
+    
+    # Extract database name from URL
+    local db_name=$(echo "$db_url" | sed 's|.*/||')
+    
+    if [ -z "$db_name" ]; then
+        echo -e "${RED}❌ Could not extract database name from URL${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}🗄️  Database removal details:${NC}"
+    echo "   Database to drop: $db_name"
+    echo "   Database URL: $db_url"
+    echo ""
+    echo -e "${RED}⚠️  WARNING: This will permanently delete the database and all its data!${NC}"
+    echo -e "${RED}   This action cannot be undone.${NC}"
+    echo ""
+    
+    # Ask for confirmation
+    echo -n "Are you sure you want to DROP database '$db_name'? Type 'yes' to confirm: "
+    read -r response
+    
+    if [ "$response" = "yes" ]; then
+        echo -e "${BLUE}📋 Dropping database...${NC}"
+        
+        # Check if psql is available
+        if ! command -v psql >/dev/null 2>&1; then
+            echo -e "${RED}❌ psql command not found. Please install PostgreSQL client tools.${NC}"
+            return 1
+        fi
+        
+        # Get connection URL without database name for admin connection
+        local admin_url=$(echo "$db_url" | sed 's|/[^/]*$|/postgres|')
+        
+        echo "   Admin URL: $admin_url"
+        echo "   Database to drop: $db_name"
+        
+        # First, check if database exists
+        echo "   Checking if database exists..."
+        local check_output=$(psql "$admin_url" -t -c "SELECT 1 FROM pg_database WHERE datname='$db_name';" 2>&1)
+        local check_exit_code=$?
+        
+        if [ $check_exit_code -ne 0 ]; then
+            echo -e "${RED}❌ Failed to connect to PostgreSQL${NC}"
+            echo "   Error: $check_output"
+            return 1
+        fi
+        
+        if [[ $check_output =~ "1" ]]; then
+            echo "   Database '$db_name' exists, proceeding with drop..."
+        else
+            echo -e "${YELLOW}⚠️  Database '$db_name' does not exist${NC}"
+            return 1
+        fi
+        
+        # Drop the database with FORCE to terminate connections
+        echo "   Executing DROP DATABASE command with FORCE..."
+        local drop_output=$(psql "$admin_url" -c "DROP DATABASE \"$db_name\" WITH (FORCE)" 2>&1)
+        local drop_exit_code=$?
+        
+        echo "   psql exit code: $drop_exit_code"
+        echo "   psql output: $drop_output"
+        
+        if [ $drop_exit_code -eq 0 ]; then
+            # Verify the database was actually dropped
+            local verify_output=$(psql "$admin_url" -t -c "SELECT 1 FROM pg_database WHERE datname='$db_name';" 2>&1)
+            if [[ ! $verify_output =~ "1" ]]; then
+                echo -e "${GREEN}✅ Database '$db_name' dropped successfully${NC}"
+                return 0
+            else
+                echo -e "${RED}❌ Database still exists after drop command${NC}"
+                return 1
+            fi
+        else
+            echo -e "${RED}❌ Failed to drop database${NC}"
+            echo "   Error: $drop_output"
+            return 1
+        fi
+    else
+        echo -e "${BLUE}⏭️  Database drop cancelled${NC}"
+        return 1
     fi
 }
 
@@ -336,8 +555,38 @@ setup_worktrees_dir() {
 }
 
 cmd_new() {
-    local branch_name="${1:-task-$(date +%Y%m%d-%H%M%S)}"
-    local base_branch="${2:-main}"
+    local copy_database=false
+    local branch_name=""
+    local base_branch="main"
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -db|--database)
+                copy_database=true
+                shift
+                ;;
+            -*)
+                echo -e "${RED}Unknown option: $1${NC}"
+                echo "Usage: git wt new [-db] [branch-name] [base-branch]"
+                return 1
+                ;;
+            *)
+                if [ -z "$branch_name" ]; then
+                    branch_name="$1"
+                else
+                    base_branch="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
+    
+    # Set default branch name if not provided
+    if [ -z "$branch_name" ]; then
+        branch_name="task-$(date +%Y%m%d-%H%M%S)"
+    fi
+    
     local git_root=$(git rev-parse --show-toplevel)
     local worktree_dir="$git_root/.worktrees/${branch_name}"
     
@@ -369,12 +618,33 @@ cmd_new() {
             echo -e "${BLUE}📋 Copying .env file to worktree...${NC}"
             cp "$root_env" "$worktree_env"
             
-            # Modify DATABASE_URL
-            _modify_database_url "$worktree_env" "$branch_name"
+            # Handle database setup based on -db flag
+            if [ "$copy_database" = true ]; then
+                # Always modify DATABASE_URL when -db flag is used
+                _modify_database_url "$worktree_env" "$branch_name"
+                
+                echo ""
+                echo -e "${BLUE}🗄️  Database setup for worktree...${NC}"
+                echo -e "${GREEN}✅ Environment URLs updated for separate database${NC}"
+                
+                # Then ask if user wants to copy the database
+                if _copy_database "$root_env" "$branch_name"; then
+                    echo -e "${GREEN}✅ Database copied successfully${NC}"
+                else
+                    echo -e "${YELLOW}⚠️  Database copy skipped${NC}"
+                    echo -e "${BLUE}💡 The .env file is configured for the new database name.${NC}"
+                    echo -e "${BLUE}   You'll need to manually create or copy the database.${NC}"
+                fi
+            else
+                echo -e "${BLUE}📝 Using original DATABASE_URL (no -db flag)${NC}"
+            fi
             
             echo -e "${GREEN}✅ Environment file configured for worktree${NC}"
         else
             echo -e "${YELLOW}⚠️  No .env file found in repository root${NC}"
+            if [ "$copy_database" = true ]; then
+                echo -e "${RED}❌ Cannot copy database without .env file${NC}"
+            fi
         fi
         
         echo ""
@@ -787,6 +1057,7 @@ cmd_task() {
 
 cmd_remove() {
     local force_remove=false
+    local drop_database=false
     local branch_name=""
     
     ensure_git_repo
@@ -798,9 +1069,13 @@ cmd_remove() {
                 force_remove=true
                 shift
                 ;;
+            -db|--database)
+                drop_database=true
+                shift
+                ;;
             -*)
                 echo -e "${RED}Unknown option: $1${NC}"
-                echo "Usage: git wt remove [-f|--force] <branch-name>"
+                echo "Usage: git wt remove [-f|--force] [-db] <branch-name>"
                 return 1
                 ;;
             *)
@@ -814,7 +1089,7 @@ cmd_remove() {
         echo "Available worktrees to remove:"
         cmd_list
         echo ""
-        echo "Usage: git wt remove [-f|--force] <branch-name>"
+        echo "Usage: git wt remove [-f|--force] [-db] <branch-name>"
         return 1
     fi
     
@@ -845,10 +1120,24 @@ cmd_remove() {
             git status --short
             echo ""
             echo -e "${YELLOW}💡 Use 'git wt remove -f $branch_name' to force removal${NC}"
+            echo -e "${YELLOW}💡 Use 'git wt remove -db $branch_name' to also drop the database${NC}"
             cd - > /dev/null
             return 1
         fi
         cd - > /dev/null
+    fi
+    
+    # Drop database if -db flag was used
+    if [ "$drop_database" = true ]; then
+        echo ""
+        echo -e "${BLUE}🗄️  Database removal requested...${NC}"
+        if _drop_database "$worktree_path/.env"; then
+            echo -e "${GREEN}✅ Database dropped successfully${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Database drop failed or was cancelled${NC}"
+            echo -e "${YELLOW}   Continuing with worktree removal...${NC}"
+        fi
+        echo ""
     fi
     
     echo -e "${YELLOW}🗑️  Removing worktree: $branch_name${NC}"
