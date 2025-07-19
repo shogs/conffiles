@@ -182,7 +182,8 @@ _copy_database() {
     
     # Ask for confirmation
     echo -n "Copy database '$original_db_name' to '$new_db_name' using psql? [Y/n]: "
-    read -r response
+    read -n 1 -r response
+    echo  # Add newline after single character input
     
     case $response in
         [nN][oO]|[nN])
@@ -402,7 +403,8 @@ _prompt_copy_node_modules() {
         fi
         
         echo -n "$relative_path? [Y/y/s/n/q] (Y=copy all, y=yes, s=symlink all, n=skip, q=quit): "
-        read -r response
+        read -n 1 -r response
+        echo  # Add newline after single character input
         
         case $response in
             [Y]|"")
@@ -698,7 +700,8 @@ cmd_new() {
         
         # Ask if user wants to switch to the new worktree
         echo -n "Switch to the new worktree with shell? [Y/n]: "
-        read -r response
+        read -n 1 -r response
+        echo  # Add newline after single character input
         
         case $response in
             [nN][oO]|[nN])
