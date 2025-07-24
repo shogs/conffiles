@@ -718,8 +718,8 @@ cmd_new() {
                 # Default to yes (Y or Enter or anything else)
                 echo -e "${BLUE}🔄 Switching to worktree with shell...${NC}"
                 echo ""
-                # Call the existing switch function with shell option
-                cmd_switch -s "$branch_name"
+                # Call the existing switch function with shell option and node_modules checking
+                cmd_switch -s --check-node-modules "$branch_name"
                 ;;
         esac
     else
@@ -846,6 +846,7 @@ cmd_list() {
 
 cmd_switch() {
     local create_shell=false
+    local check_node_modules=false
     local branch_name=""
     
     ensure_git_repo
@@ -855,6 +856,10 @@ cmd_switch() {
         case $1 in
             -s|--shell)
                 create_shell=true
+                shift
+                ;;
+            --check-node-modules)
+                check_node_modules=true
                 shift
                 ;;
             -*)
@@ -898,9 +903,11 @@ cmd_switch() {
         echo ""
         
         if [ "$create_shell" = true ]; then
-            # Check for node_modules copying before starting shell
-            if _prompt_copy_node_modules "$worktree_path" "$git_root"; then
-                _copy_node_modules
+            # Check for node_modules copying only if explicitly requested
+            if [ "$check_node_modules" = true ]; then
+                if _prompt_copy_node_modules "$worktree_path" "$git_root"; then
+                    _copy_node_modules
+                fi
             fi
             
             # Start worktree shell
