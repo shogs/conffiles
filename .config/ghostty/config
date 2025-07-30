@@ -47,3 +47,6 @@ background-opacity = 0.8
 
 #theme = dark:catppuccin-frappe,light:catppuccin-latte
 
+cursor-style = block
+
+mouse-scroll-multiplier = 0.5
