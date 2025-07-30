@@ -1,4 +1,4 @@
-#s Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
@@ -15,8 +15,8 @@ export ZSH="$HOME/.oh-my-zsh"
 # load a random theme each time oh-my-zsh is loaded, in which case,
 # to know which specific one was loaded, run: echo $RANDOM_THEME
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
-#ZSH_THEME="robbyrussell"
-ZSH_THEME="powerlevel10k/powerlevel10k"
+ZSH_THEME="robbyrussell"
+#ZSH_THEME="powerlevel9k/powerlevel9k"
 
 # Set list of themes to pick from when loading at random
 # Setting this variable when ZSH_THEME=random will cause zsh to load
@@ -95,7 +95,6 @@ source $ZSH/oh-my-zsh.sh
 # else
 #   export EDITOR='mvim'
 # fi
-export EDITOR='nvim'
 
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
@@ -108,27 +107,31 @@ export EDITOR='nvim'
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
+source /usr/local/share/antigen/antigen.zsh
+#source /usr/local/opt/powerlevel9k/powerlevel9k.zsh-theme
+export NVM_DIR=~/.nvm
+source $(brew --prefix nvm)/nvm.sh
+#export PATH="/usr/local/opt/mongodb-community@3.6/bin:$PATH"
+#export PATH="/usr/local/opt/mongodb-community@4.2/bin:$PATH"
+#export PATH="/usr/local/opt/mongodb-community@4.4/bin:$PATH"
+export PATH="/usr/local/opt/mongodb-community@7.0/bin:$PATH"
+source /usr/local/share/powerlevel10k/powerlevel10k.zsh-theme
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-eval "$(fnm env --use-on-cd)"
-
 alias rw="yarn rw"
-alias cap="yarn cap"
-# alias ll="ls -al"
+alias vim=nvim
 
 bindkey '^ ' autosuggest-accept
-#bindkey '^I' autosuggest-accept
+
+
+# Load Angular CLI autocompletion.
+#source <(ng completion script)
 
 export CDPATH=".:${HOME}/Projects"
 
-# bit
-case ":$PATH:" in
-  *":/Users/sash/bin:"*) ;;
-  *) export PATH="$PATH:$HOME/bin" ;;
-esac
-# bit end
+eval "$(zoxide init zsh)"
 
 export PATH="$PATH:$HOME/.local/bin"
 
