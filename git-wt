@@ -35,6 +35,7 @@ show_help() {
     echo -e "  ${BLUE}status${NC}                               - Show overall status"
     echo -e "  ${BLUE}clean${NC}                                - Clean up worktrees"
     echo -e "  ${BLUE}task${NC} 'description' [branch]          - Create worktree + start Claude task"
+    echo -e "  ${BLUE}db_copy${NC}                              - Copy database with current worktree name"
     echo -e "  ${BLUE}help${NC}                                 - Show this help"
     echo ""
     echo -e "${YELLOW}📁 Structure: All worktrees are created in .worktrees/ (auto-gitignored)${NC}"
@@ -43,6 +44,7 @@ show_help() {
     echo -e "${GREEN}Examples:${NC}"
     echo "  git wt new auth-feature              # or: git wt add auth-feature"
     echo "  git wt new -db auth-feature          # Create with database copy"
+    echo "  git wt db_copy                       # Copy dev database for current worktree"
     echo "  git wt task 'Add JWT authentication'"
     echo "  git wt switch auth-feature           # Lightweight switch"
     echo "  git wt switch -s auth-feature        # Switch with shell"
@@ -1254,6 +1256,64 @@ cmd_remove() {
     fi
 }
 
+cmd_db_copy() {
+    ensure_git_repo
+    
+    # Check if we're in a worktree
+    local current_dir=$(pwd)
+    local git_root=$(git rev-parse --show-toplevel)
+    
+    if [[ ! "$current_dir" == *".worktrees/"* ]]; then
+        echo -e "${RED}❌ You must be in a worktree to copy the database${NC}"
+        echo -e "${YELLOW}💡 Use 'git wt switch <branch>' to enter a worktree first${NC}"
+        return 1
+    fi
+    
+    # Extract worktree name from current path
+    local worktree_name=$(basename "$current_dir")
+    
+    # Check if .env file exists in current worktree
+    local worktree_env="$current_dir/.env"
+    if [ ! -f "$worktree_env" ]; then
+        echo -e "${RED}❌ No .env file found in current worktree${NC}"
+        echo -e "${YELLOW}💡 Make sure you have a .env file in your worktree${NC}"
+        return 1
+    fi
+    
+    # Check if there's a root .env file to copy from
+    local root_env="$git_root/.env"
+    if [ ! -f "$root_env" ]; then
+        echo -e "${RED}❌ No .env file found in repository root${NC}"
+        echo -e "${YELLOW}💡 A root .env file is needed to extract the original database URL${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}🗄️  Database copy for worktree: ${worktree_name}${NC}"
+    echo "   Current directory: $current_dir"
+    echo "   Root .env: $root_env"
+    echo "   Worktree .env: $worktree_env"
+    echo ""
+    
+    echo -e "${BLUE}🗄️  Copying database...${NC}"
+    # Copy the database using the root .env as source
+    if _copy_database "$root_env" "$worktree_name"; then
+        echo ""
+        echo -e "${BLUE}📝 Updating .env file with worktree-specific database URL...${NC}"
+        _modify_database_url "$worktree_env" "$worktree_name"
+        echo ""
+        echo -e "${GREEN}✅ Database copy completed successfully!${NC}"
+        echo -e "${BLUE}💡 Your worktree now has its own isolated database${NC}"
+        echo "   Database name: $(grep "^DATABASE_URL=" "$worktree_env" | head -1 | cut -d'=' -f2- | tr -d '"' | sed 's|.*/||')"
+    else
+        echo ""
+        echo -e "${YELLOW}⚠️  Database copy was skipped or failed${NC}"
+        echo -e "${BLUE}📝 Updating .env file with worktree-specific database URL...${NC}"
+        _modify_database_url "$worktree_env" "$worktree_name"
+        echo -e "${BLUE}💡 Your .env file has been updated with the new database name${NC}"
+        echo -e "${BLUE}   You'll need to manually create or copy the database${NC}"
+    fi
+}
+
 cmd_root() {
     ensure_git_repo
     
@@ -1324,6 +1384,9 @@ case "${1:-help}" in
     "task"|"tk")
         shift
         cmd_task "$@"
+        ;;
+    "db_copy"|"dbcopy"|"copydb")
+        cmd_db_copy
         ;;
     "help"|"-h"|"--help"|*)
         show_help
