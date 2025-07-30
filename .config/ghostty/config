@@ -43,8 +43,9 @@
 # resize-overlay-duration = 4s 200ms
 
 font-family = MesloLGS NF
-background-opacity = 0.8
+background-opacity = 0.9
 
+theme = dark:Mathias,light:catppuccin-latte
 #theme = dark:catppuccin-frappe,light:catppuccin-latte
 
 cursor-style = block
