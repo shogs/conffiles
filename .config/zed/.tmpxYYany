@@ -1,0 +1,23 @@
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Setting","setting":"theme","value":"Andromeda"}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Setting","setting":"keymap","value":"VSCode"}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"App","operation":"open"}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Editor","operation":"open","file_extension":"swift","vim_mode":true,"copilot_enabled":true,"copilot_enabled_for_language":true}
+{"signed_in":false,"milliseconds_since_first_event":195352,"type":"Memory","memory_in_bytes":243630080,"virtual_memory_in_bytes":422117064704}
+{"signed_in":false,"milliseconds_since_first_event":195352,"type":"Cpu","usage_as_percentage":6.820656,"core_count":8}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Memory","memory_in_bytes":194691072,"virtual_memory_in_bytes":422116491264}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Cpu","usage_as_percentage":6.1814375,"core_count":8}
+{"signed_in":false,"milliseconds_since_first_event":239998,"type":"Memory","memory_in_bytes":178339840,"virtual_memory_in_bytes":422116491264}
+{"signed_in":false,"milliseconds_since_first_event":239998,"type":"Cpu","usage_as_percentage":5.798667,"core_count":8}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Memory","memory_in_bytes":178716672,"virtual_memory_in_bytes":422116491264}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Cpu","usage_as_percentage":5.713676,"core_count":8}
+{"signed_in":false,"milliseconds_since_first_event":240007,"type":"Memory","memory_in_bytes":178733056,"virtual_memory_in_bytes":422115917824}
+{"signed_in":false,"milliseconds_since_first_event":240007,"type":"Cpu","usage_as_percentage":5.5585494,"core_count":8}
+{"signed_in":false,"milliseconds_since_first_event":288052,"type":"App","operation":"extensions page: open"}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Memory","memory_in_bytes":113672192,"virtual_memory_in_bytes":422397181952}
+{"signed_in":false,"milliseconds_since_first_event":0,"type":"Cpu","usage_as_percentage":4.2040205,"core_count":8}
+{"signed_in":false,"milliseconds_since_first_event":6314480,"type":"Memory","memory_in_bytes":114753536,"virtual_memory_in_bytes":422340444160}
+{"signed_in":false,"milliseconds_since_first_event":6314480,"type":"Cpu","usage_as_percentage":4.078972,"core_count":8}
+{"signed_in":true,"milliseconds_since_first_event":0,"type":"Memory","memory_in_bytes":123715584,"virtual_memory_in_bytes":422350209024}
+{"signed_in":true,"milliseconds_since_first_event":0,"type":"Cpu","usage_as_percentage":4.1099863,"core_count":8}
+{"signed_in":true,"milliseconds_since_first_event":240004,"type":"Memory","memory_in_bytes":123764736,"virtual_memory_in_bytes":422350209024}
+{"signed_in":true,"milliseconds_since_first_event":240004,"type":"Cpu","usage_as_percentage":0.58936316,"core_count":8}
