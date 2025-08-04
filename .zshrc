@@ -141,3 +141,10 @@ eval "$(pyenv init -)"
 
 alias wt='git wt'
 #alias gwt='git wt'
+
+# bun completions
+[ -s "/Users/sash/.bun/_bun" ] && source "/Users/sash/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
