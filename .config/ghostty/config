@@ -45,7 +45,8 @@
 # font-family = MesloLGS NF
 font-family = JetBrains Mono NL
 # font-family = JetBrainsMono Nerd Font Mono
-background-opacity = 0.9
+background-opacity = 0.85
+macos-titlebar-style = "transparent"
 
 theme = Mathias
 #theme = dark:Mathias,light:catppuccin-latte
