@@ -63,6 +63,32 @@ ensure_git_repo() {
     fi
 }
 
+get_default_branch() {
+    # Try to get the default branch from the remote
+    local default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+    
+    if [ -n "$default_branch" ]; then
+        echo "$default_branch"
+        return 0
+    fi
+    
+    # Fallback: check which of main/master exists locally
+    if git show-ref --verify --quiet refs/heads/main; then
+        echo "main"
+    elif git show-ref --verify --quiet refs/heads/master; then
+        echo "master"
+    else
+        # Last resort: try to guess from current branch
+        local current_branch=$(git branch --show-current 2>/dev/null)
+        if [ -n "$current_branch" ]; then
+            echo "$current_branch"
+        else
+            # Ultimate fallback
+            echo "main"
+        fi
+    fi
+}
+
 _is_in_worktree_shell() {
     [ "$GIT_WT_SHELL" = "1" ]
 }
@@ -606,7 +632,7 @@ setup_worktrees_dir() {
 cmd_new() {
     local copy_database=false
     local branch_name=""
-    local base_branch="main"
+    local base_branch=$(get_default_branch)
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -1069,8 +1095,9 @@ cmd_clean() {
     echo ""
     
     # Show merged branches that can be cleaned up
-    echo "Branches that have been merged to main:"
-    git branch --merged main 2>/dev/null | grep -E "(task-|feature-|fix-)" | sed 's/^[ *]*//' | while read branch; do
+    local default_branch=$(get_default_branch)
+    echo "Branches that have been merged to $default_branch:"
+    git branch --merged "$default_branch" 2>/dev/null | grep -E "(task-|feature-|fix-)" | sed 's/^[ *]*//' | while read branch; do
         if [ -d ".worktrees/$branch" ]; then
             echo "  📁 $branch (in .worktrees/)"
         fi
@@ -1081,7 +1108,8 @@ cmd_clean() {
     
     if [ "$branch_name" = "auto" ]; then
         # Auto-cleanup merged branches
-        git branch --merged main 2>/dev/null | grep -E "(task-|feature-|fix-)" | sed 's/^[ *]*//' | while read branch; do
+        local default_branch=$(get_default_branch)
+        git branch --merged "$default_branch" 2>/dev/null | grep -E "(task-|feature-|fix-)" | sed 's/^[ *]*//' | while read branch; do
             if [ "$branch" != "main" ] && [ "$branch" != "master" ] && [ -d ".worktrees/$branch" ]; then
                 echo -e "${YELLOW}🗑️  Removing worktree for branch: $branch${NC}"
                 git worktree remove ".worktrees/$branch" 2>/dev/null || true
