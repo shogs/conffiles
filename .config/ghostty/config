@@ -47,6 +47,7 @@ font-family = JetBrains Mono NL
 # font-family = JetBrainsMono Nerd Font Mono
 background-opacity = 0.9
 
+# Testing without theme to check titlebar transparency
 theme = Mathias
 #theme = dark:Mathias,light:catppuccin-latte
 #theme = dark:catppuccin-frappe,light:catppuccin-latte
@@ -54,3 +55,7 @@ theme = Mathias
 cursor-style = block
 
 mouse-scroll-multiplier = 0.5
+
+# Try tabs style which always matches background color
+# macos-titlebar-style = tabs
+# window-decoration = auto
