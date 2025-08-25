@@ -48,17 +48,10 @@ font-family = JetBrains Mono NL
 background-opacity = 0.85
 macos-titlebar-style = "transparent"
 
-# Testing without theme to check titlebar transparency
-theme = Mathias
+theme = Mathias-morph
 #theme = dark:Mathias,light:catppuccin-latte
 #theme = dark:catppuccin-frappe,light:catppuccin-latte
 
 cursor-style = block
 
 mouse-scroll-multiplier = 0.5
-
-# Try tabs style which always matches background color
-# macos-titlebar-style = tabs
-# window-decoration = auto
-
-unfocused-split-opacity = 1
