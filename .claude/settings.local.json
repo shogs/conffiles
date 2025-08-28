@@ -7,7 +7,10 @@
       "Bash(git wt:*)",
       "Bash(mkdir:*)",
       "Bash(open:*)",
-      "WebFetch(domain:ghostty.org)"
+      "WebFetch(domain:ghostty.org)",
+      "Bash(./git-wt help)",
+      "Bash(./git-wt new -s test-symlink)",
+      "Bash(./git-wt remove test-symlink)"
     ],
     "deny": []
   }
