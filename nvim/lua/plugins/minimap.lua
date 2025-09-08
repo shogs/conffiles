@@ -5,7 +5,7 @@ return {
     config = function()
       local codewindow = require("codewindow")
       codewindow.setup({
-        auto_enable = true,
+        auto_enable = false,
         width_multiplier = 4, -- Width of the minimap
         show_cursor = true,
         screen_bounds = "background", -- Show the visible area
