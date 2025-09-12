@@ -7,6 +7,15 @@
 // custom settings, run the `open default settings` command
 // from the command palette or from `Zed` application menu.
 {
+  "context_servers": {
+    "mcp-server-context7": {
+      "source": "extension",
+      "enabled": true,
+      "settings": {
+        "default_minimum_tokens": "10000"
+      }
+    }
+  },
   "agent": {
     "default_model": {
       "provider": "zed.dev",
@@ -28,5 +37,6 @@
   },
   "terminal": {
     "font_family": "JetBrainsMono Nerd Font"
-  }
+  },
+  "use_system_window_tabs": true
 }
