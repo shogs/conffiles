@@ -26,7 +26,7 @@ show_help() {
     echo -e "${BLUE}Git Worktree Management - Usage: git wt <command>${NC}"
     echo ""
     echo -e "${GREEN}📋 Available Commands:${NC}"
-    echo -e "  ${BLUE}new|add${NC} [-db] [branch-name] [base-branch] - Create new worktree (use -db to copy database)"
+    echo -e "  ${BLUE}new|add${NC} [-db] [-s] [branch-name] [base-branch] - Create new worktree (use -db to copy database, -s to create symlink)"
     echo -e "  ${BLUE}list${NC} [-d]                           - List all worktrees (use -d for details)" 
     echo -e "  ${BLUE}switch${NC} [-s|--shell] <branch-name>     - Switch to worktree (optionally start shell)"
     echo -e "  ${BLUE}resume${NC} [-s|--shell] <branch-name>     - Resume work in worktree (optionally start shell)"
@@ -44,6 +44,8 @@ show_help() {
     echo -e "${GREEN}Examples:${NC}"
     echo "  git wt new auth-feature              # or: git wt add auth-feature"
     echo "  git wt new -db auth-feature          # Create with database copy"
+    echo "  git wt new -s auth-feature           # Create with symlink to ../auth-feature"
+    echo "  git wt new -db -s auth-feature       # Create with database copy and symlink"
     echo "  git wt db_copy                       # Copy dev database for current worktree"
     echo "  git wt task 'Add JWT authentication'"
     echo "  git wt switch auth-feature           # Lightweight switch"
@@ -631,6 +633,7 @@ setup_worktrees_dir() {
 
 cmd_new() {
     local copy_database=false
+    local create_symlink=false
     local branch_name=""
     local base_branch=$(get_default_branch)
     
@@ -641,9 +644,13 @@ cmd_new() {
                 copy_database=true
                 shift
                 ;;
+            -s|--symlink)
+                create_symlink=true
+                shift
+                ;;
             -*)
                 echo -e "${RED}Unknown option: $1${NC}"
-                echo "Usage: git wt new [-db] [branch-name] [base-branch]"
+                echo "Usage: git wt new [-db] [-s] [branch-name] [base-branch]"
                 return 1
                 ;;
             *)
@@ -684,6 +691,28 @@ cmd_new() {
         echo "branch=$branch_name" > "$worktree_dir/.git-wt-session"
         echo "created=$(date -Iseconds)" >> "$worktree_dir/.git-wt-session"
         echo "base_branch=$base_branch" >> "$worktree_dir/.git-wt-session"
+        
+        # Create symlink if requested
+        if [ "$create_symlink" = true ]; then
+            local repo_name=$(basename "$git_root")
+            local symlink_name="${repo_name}-${branch_name}"
+            local symlink_path="../$symlink_name"
+            
+            echo -e "${BLUE}🔗 Creating symlink...${NC}"
+            echo "   Target: $worktree_dir"
+            echo "   Link: $symlink_path"
+            
+            if ln -sf "$worktree_dir" "$symlink_path"; then
+                echo -e "${GREEN}✅ Symlink created successfully!${NC}"
+                echo -e "${BLUE}🔗 Link: $symlink_path -> $worktree_dir${NC}"
+                echo "has_symlink=true" >> "$worktree_dir/.git-wt-session"
+                echo "symlink_path=$symlink_path" >> "$worktree_dir/.git-wt-session"
+            else
+                echo -e "${RED}❌ Failed to create symlink${NC}"
+                echo -e "${YELLOW}⚠️  Continuing without symlink...${NC}"
+            fi
+            echo ""
+        fi
         
         # Copy and modify .env file
         local root_env="$git_root/.env"
@@ -1241,6 +1270,33 @@ cmd_remove() {
         else
             echo -e "${YELLOW}⚠️  Database drop failed or was cancelled${NC}"
             echo -e "${YELLOW}   Continuing with worktree removal...${NC}"
+        fi
+        echo ""
+    fi
+    
+    # Check if worktree has a symlink and remove it
+    local has_symlink=""
+    local symlink_path=""
+    
+    if [ -f "$worktree_path/.git-wt-session" ]; then
+        has_symlink=$(grep "^has_symlink=" "$worktree_path/.git-wt-session" | cut -d'=' -f2)
+        symlink_path=$(grep "^symlink_path=" "$worktree_path/.git-wt-session" | cut -d'=' -f2-)
+    fi
+    
+    if [ "$has_symlink" = "true" ] && [ -n "$symlink_path" ]; then
+        echo -e "${BLUE}🔗 Checking for symlink...${NC}"
+        echo "   Symlink path: $symlink_path"
+        
+        if [ -L "$symlink_path" ]; then
+            echo -e "${YELLOW}🗑️  Removing symlink...${NC}"
+            if rm "$symlink_path"; then
+                echo -e "${GREEN}✅ Symlink removed successfully${NC}"
+            else
+                echo -e "${RED}❌ Failed to remove symlink${NC}"
+                echo -e "${YELLOW}⚠️  Please manually remove: $symlink_path${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Symlink not found or not a symlink: $symlink_path${NC}"
         fi
         echo ""
     fi
