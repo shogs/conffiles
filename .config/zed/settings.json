@@ -7,6 +7,9 @@
 // custom settings, run the `open default settings` command
 // from the command palette or from `Zed` application menu.
 {
+  "git_panel": {
+    "sort_by_path": true
+  },
   "context_servers": {
     "mcp-server-context7": {
       "source": "extension",
@@ -37,6 +40,12 @@
   },
   "terminal": {
     "font_family": "JetBrainsMono Nerd Font"
+  },
+  "minimap": {
+    "show": "always",
+    "thumb": "always",
+    "thumb_border": "left_open",
+    "current_line_highlight": null
   },
   "use_system_window_tabs": true
 }
