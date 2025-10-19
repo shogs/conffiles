@@ -26,34 +26,31 @@ show_help() {
     echo -e "${BLUE}Git Worktree Management - Usage: git wt <command>${NC}"
     echo ""
     echo -e "${GREEN}📋 Available Commands:${NC}"
-    echo -e "  ${BLUE}new|add${NC} [-db] [-s] [branch-name] [base-branch] - Create new worktree (use -db to copy database, -s to create symlink)"
-    echo -e "  ${BLUE}list${NC} [-d]                           - List all worktrees (use -d for details)" 
+    echo -e "  ${BLUE}init${NC} [--template=<name>|--minimal]    - Initialize .git-wt.yaml configuration"
+    echo -e "  ${BLUE}new|add${NC} [branch-name] [base-branch]   - Create new worktree"
+    echo -e "  ${BLUE}list${NC} [-d]                           - List all worktrees (use -d for details)"
     echo -e "  ${BLUE}switch${NC} [-s|--shell] <branch-name>     - Switch to worktree (optionally start shell)"
     echo -e "  ${BLUE}resume${NC} [-s|--shell] <branch-name>     - Resume work in worktree (optionally start shell)"
-    echo -e "  ${BLUE}remove${NC} [-f|--force] [-db] <branch-name> - Remove worktree and branch (use -db to drop database)"
+    echo -e "  ${BLUE}remove${NC} [-f|--force] <branch-name>     - Remove worktree and branch"
     echo -e "  ${BLUE}root${NC}                                 - Switch to repository root"
     echo -e "  ${BLUE}status${NC}                               - Show overall status"
     echo -e "  ${BLUE}clean${NC}                                - Clean up worktrees"
     echo -e "  ${BLUE}task${NC} 'description' [branch]          - Create worktree + start Claude task"
-    echo -e "  ${BLUE}db_copy${NC}                              - Copy database with current worktree name"
     echo -e "  ${BLUE}help${NC}                                 - Show this help"
     echo ""
     echo -e "${YELLOW}📁 Structure: All worktrees are created in .worktrees/ (auto-gitignored)${NC}"
     echo -e "${YELLOW}🔗 Integration: Works seamlessly with Claude Code slash commands${NC}"
     echo ""
     echo -e "${GREEN}Examples:${NC}"
+    echo "  git wt init                          # Initialize configuration"
+    echo "  git wt init --template=nodejs-simple # Use specific template"
     echo "  git wt new auth-feature              # or: git wt add auth-feature"
-    echo "  git wt new -db auth-feature          # Create with database copy"
-    echo "  git wt new -s auth-feature           # Create with symlink to ../auth-feature"
-    echo "  git wt new -db -s auth-feature       # Create with database copy and symlink"
-    echo "  git wt db_copy                       # Copy dev database for current worktree"
     echo "  git wt task 'Add JWT authentication'"
     echo "  git wt switch auth-feature           # Lightweight switch"
     echo "  git wt switch -s auth-feature        # Switch with shell"
     echo "  git wt resume -s bug-fix             # Resume with shell"
     echo "  git wt remove auth-feature           # Remove worktree (safe)"
     echo "  git wt remove -f old-feature         # Force remove worktree"
-    echo "  git wt remove -db auth-feature       # Remove worktree and drop database"
     echo "  git wt root                          # Return to main repo"
     echo "  git wt list"
 }
@@ -68,12 +65,12 @@ ensure_git_repo() {
 get_default_branch() {
     # Try to get the default branch from the remote
     local default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-    
+
     if [ -n "$default_branch" ]; then
         echo "$default_branch"
         return 0
     fi
-    
+
     # Fallback: check which of main/master exists locally
     if git show-ref --verify --quiet refs/heads/main; then
         echo "main"
@@ -117,513 +114,10 @@ _exit_worktree_shell() {
     return 1
 }
 
-_modify_database_url() {
-    local env_file="$1"
-    local worktree_name="$2"
-    
-    if [ ! -f "$env_file" ]; then
-        return 0
-    fi
-    
-    if grep -q "^DATABASE_URL=\|^DIRECT_URL=" "$env_file"; then
-        # Create temporary file for processing
-        local temp_file=$(mktemp)
-        
-        while IFS= read -r line; do
-            if [[ $line =~ ^DATABASE_URL= ]] || [[ $line =~ ^DIRECT_URL= ]]; then
-                # Extract the URL value
-                local url_value="${line#*=}"
-                url_value="${url_value%\"}"  # Remove trailing quote
-                url_value="${url_value#\"}"  # Remove leading quote
-                local var_name="${line%%=*}"
-                
-                # Modify based on database type
-                case $url_value in
-                    postgresql://*|postgres://*)
-                        # postgresql://user:pass@host:port/dbname -> dbname-worktree
-                        modified_url=$(echo "$url_value" | sed "s|\(/[^/?]*\)$|\1-${worktree_name}|")
-                        ;;
-                    mysql://*)
-                        # mysql://user:pass@host:port/dbname -> dbname-worktree
-                        modified_url=$(echo "$url_value" | sed "s|\(/[^/?]*\)$|\1-${worktree_name}|")
-                        ;;
-                    sqlite:*)
-                        # sqlite:./file.db -> ./file-worktree.db
-                        modified_url=$(echo "$url_value" | sed "s|\(.*\)\(\.db\)|\1-${worktree_name}\2|")
-                        ;;
-                    *)
-                        # Default: try to add suffix before query params or at end
-                        modified_url=$(echo "$url_value" | sed "s|\([^?]*\)\([?].*\)\?$|\1-${worktree_name}\2|")
-                        ;;
-                esac
-                
-                echo "${var_name}=\"$modified_url\"" >> "$temp_file"
-                echo -e "${GREEN}📝 Modified ${var_name} for worktree: ${worktree_name}${NC}"
-            else
-                echo "$line" >> "$temp_file"
-            fi
-        done < "$env_file"
-        
-        # Replace original file
-        mv "$temp_file" "$env_file"
-    fi
-}
-
-_copy_database() {
-    local env_file="$1"
-    local worktree_name="$2"
-    
-    if [ ! -f "$env_file" ]; then
-        echo -e "${RED}❌ No .env file found to extract database URL${NC}"
-        return 1
-    fi
-    
-    # Extract original DATABASE_URL
-    local original_db_url=$(grep "^DATABASE_URL=" "$env_file" | head -1 | cut -d'=' -f2- | tr -d '"')
-    
-    if [ -z "$original_db_url" ]; then
-        echo -e "${RED}❌ No DATABASE_URL found in .env file${NC}"
-        return 1
-    fi
-    
-    # Check if this is a PostgreSQL URL
-    if [[ ! $original_db_url =~ ^postgresql://|^postgres:// ]]; then
-        echo -e "${YELLOW}⚠️  Database copying only supports PostgreSQL databases${NC}"
-        echo "   Found: $original_db_url"
-        return 1
-    fi
-    
-    # Extract database name from URL
-    local original_db_name=$(echo "$original_db_url" | sed 's|.*/||')
-    local new_db_name="${original_db_name}-${worktree_name}"
-    
-    if [ -z "$original_db_name" ]; then
-        echo -e "${RED}❌ Could not extract database name from URL${NC}"
-        return 1
-    fi
-    
-    echo -e "${BLUE}🗄️  Database copying details:${NC}"
-    echo "   Original database: $original_db_name"
-    echo "   New database: $new_db_name"
-    echo ""
-    echo -e "${YELLOW}💡 Your .env file has been updated to use the new database name.${NC}"
-    echo -e "${YELLOW}   If you skip copying, you'll need to manually create/copy the database.${NC}"
-    echo ""
-    
-    # Ask for confirmation
-    echo -n "Copy database '$original_db_name' to '$new_db_name' using psql? [Y/n]: "
-    read -n 1 -r response
-    echo  # Add newline after single character input
-    
-    case $response in
-        [nN][oO]|[nN])
-            echo -e "${BLUE}⏭️  Skipping database copy${NC}"
-            return 1
-            ;;
-        *)
-            # Default to yes (Y or Enter or anything else)
-            echo -e "${BLUE}📋 Creating database copy...${NC}"
-            
-            # Check if psql is available
-            if ! command -v psql >/dev/null 2>&1; then
-                echo -e "${RED}❌ psql command not found. Please install PostgreSQL client tools.${NC}"
-                return 1
-            fi
-            
-            # Create new database
-            echo "Creating new database: $new_db_name"
-            local create_output=$(psql "$original_db_url" -c "CREATE DATABASE \"$new_db_name\"" 2>&1)
-            local create_exit_code=$?
-            
-            if [ $create_exit_code -eq 0 ]; then
-                echo -e "${GREEN}✅ Database created successfully${NC}"
-            else
-                echo -e "${RED}❌ Failed to create database${NC}"
-                echo "   Error: $create_output"
-                return 1
-            fi
-            
-            # Copy database using pg_dump and psql
-            echo "Copying database contents..."
-            local new_db_url=$(echo "$original_db_url" | sed "s|/[^/]*$|/${new_db_name}|")
-            
-            echo "   Source: $original_db_url"
-            echo "   Target: $new_db_url"
-            echo "   This may take a while depending on database size..."
-            
-            # Use a more verbose approach to show progress and capture errors
-            local dump_output=$(pg_dump "$original_db_url" 2>&1)
-            local dump_exit_code=$?
-            
-            if [ $dump_exit_code -ne 0 ]; then
-                echo -e "${RED}❌ Failed to dump source database${NC}"
-                echo "   Error: $dump_output"
-                # Clean up the empty database
-                psql "$original_db_url" -c "DROP DATABASE IF EXISTS \"$new_db_name\"" 2>/dev/null
-                return 1
-            fi
-            
-            echo "   Database dump completed, now restoring..."
-            local restore_output=$(echo "$dump_output" | psql "$new_db_url" 2>&1)
-            local restore_exit_code=$?
-            
-            if [ $restore_exit_code -eq 0 ]; then
-                echo -e "${GREEN}✅ Database copied successfully${NC}"
-                echo "   New database URL: $new_db_url"
-                return 0
-            else
-                echo -e "${RED}❌ Failed to restore database contents${NC}"
-                echo "   Error: $restore_output"
-                # Clean up the database with failed restore
-                echo "   Cleaning up failed database..."
-                psql "$original_db_url" -c "DROP DATABASE IF EXISTS \"$new_db_name\"" 2>/dev/null
-                return 1
-            fi
-            ;;
-    esac
-}
-
-_drop_database() {
-    local worktree_env_file="$1"
-    
-    if [ ! -f "$worktree_env_file" ]; then
-        echo -e "${YELLOW}⚠️  No .env file found in worktree${NC}"
-        return 1
-    fi
-    
-    # Extract DATABASE_URL from worktree .env file
-    local db_url=$(grep "^DATABASE_URL=" "$worktree_env_file" | head -1 | cut -d'=' -f2- | tr -d '"')
-    
-    if [ -z "$db_url" ]; then
-        echo -e "${YELLOW}⚠️  No DATABASE_URL found in worktree .env file${NC}"
-        return 1
-    fi
-    
-    # Check if this is a PostgreSQL URL
-    if [[ ! $db_url =~ ^postgresql://|^postgres:// ]]; then
-        echo -e "${YELLOW}⚠️  Database dropping only supports PostgreSQL databases${NC}"
-        echo "   Found: $db_url"
-        return 1
-    fi
-    
-    # Extract database name from URL
-    local db_name=$(echo "$db_url" | sed 's|.*/||')
-    
-    if [ -z "$db_name" ]; then
-        echo -e "${RED}❌ Could not extract database name from URL${NC}"
-        return 1
-    fi
-    
-    echo -e "${BLUE}🗄️  Database removal details:${NC}"
-    echo "   Database to drop: $db_name"
-    echo "   Database URL: $db_url"
-    echo ""
-    echo -e "${RED}⚠️  WARNING: This will permanently delete the database and all its data!${NC}"
-    echo -e "${RED}   This action cannot be undone.${NC}"
-    echo ""
-    
-    # Ask for confirmation
-    echo -n "Are you sure you want to DROP database '$db_name'? Type 'yes' to confirm: "
-    read -r response
-    
-    if [ "$response" = "yes" ]; then
-        echo -e "${BLUE}📋 Dropping database...${NC}"
-        
-        # Check if psql is available
-        if ! command -v psql >/dev/null 2>&1; then
-            echo -e "${RED}❌ psql command not found. Please install PostgreSQL client tools.${NC}"
-            return 1
-        fi
-        
-        # Get connection URL without database name for admin connection
-        local admin_url=$(echo "$db_url" | sed 's|/[^/]*$|/postgres|')
-        
-        echo "   Admin URL: $admin_url"
-        echo "   Database to drop: $db_name"
-        
-        # First, check if database exists
-        echo "   Checking if database exists..."
-        local check_output=$(psql "$admin_url" -t -c "SELECT 1 FROM pg_database WHERE datname='$db_name';" 2>&1)
-        local check_exit_code=$?
-        
-        if [ $check_exit_code -ne 0 ]; then
-            echo -e "${RED}❌ Failed to connect to PostgreSQL${NC}"
-            echo "   Error: $check_output"
-            return 1
-        fi
-        
-        if [[ $check_output =~ "1" ]]; then
-            echo "   Database '$db_name' exists, proceeding with drop..."
-        else
-            echo -e "${YELLOW}⚠️  Database '$db_name' does not exist${NC}"
-            return 1
-        fi
-        
-        # Drop the database with FORCE to terminate connections
-        echo "   Executing DROP DATABASE command with FORCE..."
-        local drop_output=$(psql "$admin_url" -c "DROP DATABASE \"$db_name\" WITH (FORCE)" 2>&1)
-        local drop_exit_code=$?
-        
-        echo "   psql exit code: $drop_exit_code"
-        echo "   psql output: $drop_output"
-        
-        if [ $drop_exit_code -eq 0 ]; then
-            # Verify the database was actually dropped
-            local verify_output=$(psql "$admin_url" -t -c "SELECT 1 FROM pg_database WHERE datname='$db_name';" 2>&1)
-            if [[ ! $verify_output =~ "1" ]]; then
-                echo -e "${GREEN}✅ Database '$db_name' dropped successfully${NC}"
-                return 0
-            else
-                echo -e "${RED}❌ Database still exists after drop command${NC}"
-                return 1
-            fi
-        else
-            echo -e "${RED}❌ Failed to drop database${NC}"
-            echo "   Error: $drop_output"
-            return 1
-        fi
-    else
-        echo -e "${BLUE}⏭️  Database drop cancelled${NC}"
-        return 1
-    fi
-}
-
-_prompt_copy_node_modules() {
-    local worktree_path="$1"
-    local git_root="$2"
-    local copy_all_remaining="$3"  # Pass by reference simulation
-    
-    # Find all node_modules directories, excluding worktrees and hidden dirs
-    local node_modules_dirs=()
-    
-    while IFS= read -r -d '' dir; do
-        # Skip if already exists in worktree
-        local relative_path="${dir#$git_root/}"
-        local target_path="$worktree_path/$relative_path"
-        if [ ! -d "$target_path" ]; then
-            node_modules_dirs+=("$dir")
-        fi
-    done < <(find "$git_root" -name "node_modules" -type d -not -path "*/.worktrees/*" -not -path "*/.*" -not -path "*/node_modules/*/node_modules" -print0)
-    
-    if [ ${#node_modules_dirs[@]} -eq 0 ]; then
-        return 1  # No node_modules to copy
-    fi
-    
-    echo -e "${YELLOW}📦 Found ${#node_modules_dirs[@]} node_modules directories:${NC}"
-    for dir in "${node_modules_dirs[@]}"; do
-        local relative_path="${dir#$git_root/}"
-        echo "  • $relative_path"
-    done
-    echo ""
-    
-    local copy_list=()
-    local skip_all=false
-    
-    for dir in "${node_modules_dirs[@]}"; do
-        if [ "$skip_all" = true ]; then
-            break
-        fi
-        
-        local relative_path="${dir#$git_root/}"
-        local target_path="$worktree_path/$relative_path"
-        
-        if [ "$copy_all_remaining" = "true" ]; then
-            copy_list+=("$dir:$target_path")
-            continue
-        fi
-        
-        echo -n "$relative_path? [Y/y/s/n/q] (Y=copy all, y=yes, s=symlink all, n=skip, q=quit): "
-        read -n 1 -r response
-        echo  # Add newline after single character input
-        
-        case $response in
-            [Y]|"")
-                # Copy all remaining (default on enter)
-                copy_list+=("copy:$dir:$target_path")
-                copy_all_remaining="true"
-                # Add all remaining directories for copying
-                for remaining_dir in "${node_modules_dirs[@]}"; do
-                    if [[ ! " ${copy_list[*]} " =~ " ${remaining_dir}: " ]]; then
-                        local remaining_relative="${remaining_dir#$git_root/}"
-                        local remaining_target="$worktree_path/$remaining_relative"
-                        copy_list+=("copy:$remaining_dir:$remaining_target")
-                    fi
-                done
-                break
-                ;;
-            [yY][eE][sS]|[yY])
-                # Yes - copy this one
-                copy_list+=("copy:$dir:$target_path")
-                ;;
-            [sS])
-                # Symlink all remaining
-                copy_list+=("symlink:$dir:$target_path")
-                copy_all_remaining="true"
-                # Add all remaining directories for symlinking
-                for remaining_dir in "${node_modules_dirs[@]}"; do
-                    if [[ ! " ${copy_list[*]} " =~ " ${remaining_dir}: " ]]; then
-                        local remaining_relative="${remaining_dir#$git_root/}"
-                        local remaining_target="$worktree_path/$remaining_relative"
-                        copy_list+=("symlink:$remaining_dir:$remaining_target")
-                    fi
-                done
-                break
-                ;;
-            [nN][oO]|[nN])
-                # Skip this one
-                echo -e "${BLUE}⏭️  Skipping $relative_path${NC}"
-                ;;
-            [qQ][uU][iI][tT]|[qQ])
-                # Quit operations
-                skip_all=true
-                echo -e "${BLUE}⏭️  Quitting node_modules operations${NC}"
-                break
-                ;;
-        esac
-    done
-    
-    if [ ${#copy_list[@]} -eq 0 ]; then
-        echo -e "${BLUE}⏭️  No node_modules selected for copying${NC}"
-        return 1
-    fi
-    
-    # Export the copy list for the copy function
-    printf '%s\n' "${copy_list[@]}" > /tmp/git-wt-copy-list.$$
-    return 0
-}
-
-_copy_node_modules() {
-    # Read the copy list from temp file
-    local copy_list_file="/tmp/git-wt-copy-list.$$"
-    
-    if [ ! -f "$copy_list_file" ]; then
-        echo -e "${RED}❌ No copy list found${NC}"
-        return 1
-    fi
-    
-    local copy_pairs=()
-    while IFS= read -r line; do
-        copy_pairs+=("$line")
-    done < "$copy_list_file"
-    
-    # Clean up temp file
-    rm -f "$copy_list_file"
-    
-    if [ ${#copy_pairs[@]} -eq 0 ]; then
-        echo -e "${BLUE}⏭️  No directories to copy${NC}"
-        return 0
-    fi
-    
-    echo -e "${BLUE}📋 Processing ${#copy_pairs[@]} node_modules directories...${NC}"
-    
-    local total_copied=0
-    local total_symlinked=0
-    local total_failed=0
-    
-    for pair in "${copy_pairs[@]}"; do
-        local operation="${pair%%:*}"
-        local remaining="${pair#*:}"
-        local source="${remaining%:*}"
-        local destination="${remaining#*:}"
-        local relative_path="${source#$(git rev-parse --show-toplevel)/}"
-        
-        if [ "$operation" = "symlink" ]; then
-            echo -e "${BLUE}🔗 Creating symlink for $relative_path...${NC}"
-            
-            # Create parent directory if needed
-            mkdir -p "$(dirname "$destination")"
-            
-            # Create symlink
-            if ln -sf "$source" "$destination"; then
-                echo -e "   ${GREEN}✅ $relative_path symlinked successfully${NC}"
-                ((total_symlinked++))
-                
-                # Show what it links to
-                local link_target=$(readlink "$destination")
-                echo -e "   ${BLUE}🔗 Links to: $link_target${NC}"
-            else
-                echo -e "   ${RED}❌ Failed to create symlink for $relative_path${NC}"
-                ((total_failed++))
-            fi
-            
-        else
-            echo -e "${BLUE}📦 Copying $relative_path...${NC}"
-            
-            # Create parent directory if needed
-            mkdir -p "$(dirname "$destination")"
-            
-            if command -v rsync >/dev/null 2>&1; then
-                # Count files for this directory
-                local dir_files=$(find "$source" -type f | wc -l | tr -d ' ')
-                echo "   📊 $dir_files files to copy..."
-                
-                # Use rsync with minimal output, show progress via file count
-                rsync -a "$source/" "$destination/" &
-                local rsync_pid=$!
-                
-                # Show progress while rsync runs
-                while kill -0 $rsync_pid 2>/dev/null; do
-                    if [ -d "$destination" ]; then
-                        local copied_files=$(find "$destination" -type f 2>/dev/null | wc -l | tr -d ' ')
-                        local percent=$((copied_files * 100 / dir_files))
-                        printf "\r   📋 Progress: %d%% (%d/%d files)" $percent $copied_files $dir_files
-                    fi
-                    sleep 0.3
-                done
-                
-                wait $rsync_pid
-                local rsync_exit=$?
-                printf "\n"
-                
-                if [ $rsync_exit -eq 0 ]; then
-                    echo -e "   ${GREEN}✅ $relative_path copied successfully${NC}"
-                    ((total_copied++))
-                    
-                    # Show size information
-                    local size=$(du -sh "$destination" 2>/dev/null | cut -f1)
-                    if [ -n "$size" ]; then
-                        echo -e "   ${BLUE}📊 Size: $size${NC}"
-                    fi
-                else
-                    echo -e "   ${RED}❌ Failed to copy $relative_path${NC}"
-                    ((total_failed++))
-                fi
-            else
-                # Fallback to cp with recursive copy
-                echo "   Using cp for copying (rsync not available)..."
-                if cp -R "$source" "$destination"; then
-                    echo -e "   ${GREEN}✅ $relative_path copied successfully${NC}"
-                    ((total_copied++))
-                else
-                    echo -e "   ${RED}❌ Failed to copy $relative_path${NC}"
-                    ((total_failed++))
-                fi
-            fi
-        fi
-        
-        echo ""
-    done
-    
-    # Summary
-    echo -e "${GREEN}📊 Summary:${NC}"
-    if [ $total_copied -gt 0 ]; then
-        echo -e "${GREEN}   $total_copied copied successfully${NC}"
-    fi
-    if [ $total_symlinked -gt 0 ]; then
-        echo -e "${BLUE}   $total_symlinked symlinked successfully${NC}"
-    fi
-    if [ $total_failed -gt 0 ]; then
-        echo -e "${RED}   $total_failed failed${NC}"
-        return 1
-    fi
-    
-    return 0
-}
-
 setup_worktrees_dir() {
     # Create .worktrees directory if it doesn't exist
     mkdir -p .worktrees
-    
+
     # Add .worktrees to .gitignore if not already there
     if ! grep -q "^\.worktrees/" .gitignore 2>/dev/null; then
         echo ".worktrees/" >> .gitignore
@@ -631,26 +125,294 @@ setup_worktrees_dir() {
     fi
 }
 
+require_config() {
+    if [ ! -f .git-wt.yaml ]; then
+        echo -e "${RED}❌ No .git-wt.yaml configuration found!${NC}"
+        echo -e "${YELLOW}💡 Run 'git wt init' to create a configuration${NC}"
+        echo -e "${YELLOW}💡 Or create .git-wt.yaml manually${NC}"
+        echo -e "${YELLOW}💡 See templates/ directory for examples${NC}"
+        exit 1
+    fi
+}
+
+execute_setup_actions() {
+    local git_root="$1"
+    local worktree_path="$2"
+    local worktree_name="$3"
+    local base_branch="$4"
+
+    export GIT_ROOT="$git_root"
+    export WORKTREE_PATH="$worktree_path"
+    export WORKTREE_NAME="$worktree_name"
+    export BASE_BRANCH="$base_branch"
+
+    if ! command -v yq >/dev/null 2>&1; then
+        if ! command -v python3 >/dev/null 2>&1; then
+            echo -e "${RED}❌ Neither yq nor python3 available${NC}"
+            echo -e "${YELLOW}💡 Install yq: brew install yq${NC}"
+            exit 1
+        fi
+        execute_setup_actions_python
+        return $?
+    fi
+
+    local setup_count=$(yq eval '.setup | length' .git-wt.yaml 2>/dev/null)
+
+    if [ "$setup_count" = "0" ] || [ "$setup_count" = "null" ] || [ -z "$setup_count" ]; then
+        echo -e "${BLUE}ℹ️  No setup actions configured${NC}"
+        return 0
+    fi
+
+    echo -e "${BLUE}🔧 Running setup actions...${NC}"
+    echo ""
+
+    for i in $(seq 0 $((setup_count - 1))); do
+        local name=$(yq eval ".setup[$i].name" .git-wt.yaml)
+        local desc=$(yq eval ".setup[$i].description" .git-wt.yaml)
+        local script=$(yq eval ".setup[$i].script" .git-wt.yaml)
+
+        echo -e "${GREEN}▶ $desc${NC}"
+
+        eval "$script"
+        local exit_code=$?
+
+        if [ $exit_code -eq 1 ]; then
+            echo -e "${RED}❌ Setup action '$name' failed${NC}"
+            return 1
+        fi
+
+        echo ""
+    done
+
+    echo -e "${GREEN}✅ Setup actions completed${NC}"
+    return 0
+}
+
+execute_teardown_actions() {
+    local git_root="$1"
+    local worktree_path="$2"
+    local worktree_name="$3"
+
+    export GIT_ROOT="$git_root"
+    export WORKTREE_PATH="$worktree_path"
+    export WORKTREE_NAME="$worktree_name"
+
+    if ! command -v yq >/dev/null 2>&1; then
+        if command -v python3 >/dev/null 2>&1; then
+            execute_teardown_actions_python
+        fi
+        return $?
+    fi
+
+    local teardown_count=$(yq eval '.teardown | length' .git-wt.yaml 2>/dev/null)
+
+    if [ "$teardown_count" = "0" ] || [ "$teardown_count" = "null" ] || [ -z "$teardown_count" ]; then
+        return 0
+    fi
+
+    echo -e "${BLUE}🔧 Running teardown actions...${NC}"
+    echo ""
+
+    for i in $(seq 0 $((teardown_count - 1))); do
+        local name=$(yq eval ".teardown[$i].name" .git-wt.yaml)
+        local desc=$(yq eval ".teardown[$i].description" .git-wt.yaml)
+        local script=$(yq eval ".teardown[$i].script" .git-wt.yaml)
+
+        echo -e "${YELLOW}▶ $desc${NC}"
+
+        eval "$script"
+
+        echo ""
+    done
+
+    return 0
+}
+
+execute_setup_actions_python() {
+    python3 <<'PYTHON_EOF'
+import yaml
+import os
+import sys
+import subprocess
+
+with open('.git-wt.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+
+setup = config.get('setup', [])
+
+if not setup:
+    print('\033[0;34mℹ️  No setup actions configured\033[0m')
+    sys.exit(0)
+
+print('\033[0;34m🔧 Running setup actions...\033[0m')
+print()
+
+for action in setup:
+    name = action.get('name', 'unnamed')
+    desc = action.get('description', 'No description')
+    script = action.get('script', '')
+
+    print(f'\033[0;32m▶ {desc}\033[0m')
+
+    result = subprocess.run(script, shell=True, executable='/bin/bash')
+
+    if result.returncode == 1:
+        print(f'\033[0;31m❌ Setup action "{name}" failed\033[0m')
+        sys.exit(1)
+
+    print()
+
+print('\033[0;32m✅ Setup actions completed\033[0m')
+PYTHON_EOF
+}
+
+execute_teardown_actions_python() {
+    python3 <<'PYTHON_EOF'
+import yaml
+import subprocess
+
+with open('.git-wt.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+
+teardown = config.get('teardown', [])
+
+if not teardown:
+    exit(0)
+
+print('\033[0;34m🔧 Running teardown actions...\033[0m')
+print()
+
+for action in teardown:
+    name = action.get('name', 'unnamed')
+    desc = action.get('description', 'No description')
+    script = action.get('script', '')
+
+    print(f'\033[1;33m▶ {desc}\033[0m')
+
+    subprocess.run(script, shell=True, executable='/bin/bash')
+
+    print()
+PYTHON_EOF
+}
+
+cmd_init() {
+    local template=""
+    local auto_detect=true
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --template=*)
+                template="${1#*=}"
+                auto_detect=false
+                shift
+                ;;
+            --minimal)
+                template="minimal"
+                auto_detect=false
+                shift
+                ;;
+            -h|--help)
+                echo "Usage: git wt init [--template=<name>|--minimal]"
+                echo ""
+                echo "Available templates:"
+                echo "  nodejs-full     - Node.js with full setup (current git-wt behavior)"
+                echo "  nodejs-simple   - Node.js with simple npm install"
+                echo "  python-django   - Python Django projects"
+                echo "  minimal         - No setup actions"
+                echo ""
+                echo "Without --template, auto-detects project type"
+                return 0
+                ;;
+            *)
+                echo -e "${RED}Unknown option: $1${NC}"
+                return 1
+                ;;
+        esac
+    done
+
+    ensure_git_repo
+
+    if [ -f .git-wt.yaml ]; then
+        echo -e "${YELLOW}⚠️  .git-wt.yaml already exists${NC}"
+        echo -n "Overwrite? [y/N]: "
+        read -n 1 -r response
+        echo
+
+        case $response in
+            [yY])
+                echo "Proceeding with overwrite..."
+                ;;
+            *)
+                echo "Cancelled"
+                return 0
+                ;;
+        esac
+    fi
+
+    if [ "$auto_detect" = true ]; then
+        if [ -f package.json ]; then
+            template="nodejs-full"
+            echo -e "${BLUE}🔍 Detected Node.js project${NC}"
+        elif [ -f requirements.txt ] || [ -f setup.py ]; then
+            template="python-django"
+            echo -e "${BLUE}🔍 Detected Python project${NC}"
+        else
+            template="minimal"
+            echo -e "${BLUE}🔍 No specific project type detected, using minimal template${NC}"
+        fi
+    fi
+
+    # Get the directory where the actual script lives (follow symlinks)
+    local script_path="${BASH_SOURCE[0]}"
+    # Resolve symlink if this script is symlinked
+    if [ -L "$script_path" ]; then
+        script_path="$(readlink "$script_path")"
+    fi
+    local script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+    local template_file="$script_dir/templates/${template}.yaml"
+
+    if [ ! -f "$template_file" ]; then
+        echo -e "${RED}❌ Template '$template' not found${NC}"
+        echo -e "${YELLOW}💡 Available templates:${NC}"
+        ls -1 "$script_dir/templates/" 2>/dev/null | sed 's/\.yaml$//' | sed 's/^/  /'
+        return 1
+    fi
+
+    cp "$template_file" .git-wt.yaml
+
+    echo -e "${GREEN}✅ Created .git-wt.yaml from '$template' template${NC}"
+    echo ""
+    echo -e "${BLUE}📝 Next steps:${NC}"
+    echo "  1. Review and customize .git-wt.yaml as needed"
+    echo "  2. Consider adding .git-wt.yaml to git to share with team"
+    echo "  3. Run 'git wt new <branch-name>' to create your first worktree"
+    echo ""
+    echo -n "Add .git-wt.yaml to git? [Y/n]: "
+    read -n 1 -r response
+    echo
+
+    case $response in
+        [nN])
+            echo "Skipped git add"
+            ;;
+        *)
+            git add .git-wt.yaml
+            echo -e "${GREEN}✅ Added .git-wt.yaml to git${NC}"
+            echo -e "${YELLOW}💡 Don't forget to commit: git commit -m 'Add git-wt configuration'${NC}"
+            ;;
+    esac
+}
+
 cmd_new() {
-    local copy_database=false
-    local create_symlink=false
     local branch_name=""
     local base_branch=$(get_default_branch)
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -db|--database)
-                copy_database=true
-                shift
-                ;;
-            -s|--symlink)
-                create_symlink=true
-                shift
-                ;;
             -*)
                 echo -e "${RED}Unknown option: $1${NC}"
-                echo "Usage: git wt new [-db] [-s] [branch-name] [base-branch]"
+                echo "Usage: git wt new [branch-name] [base-branch]"
                 return 1
                 ;;
             *)
@@ -663,110 +425,63 @@ cmd_new() {
                 ;;
         esac
     done
-    
+
     # Set default branch name if not provided
     if [ -z "$branch_name" ]; then
         branch_name="task-$(date +%Y%m%d-%H%M%S)"
     fi
-    
+
     local git_root=$(git rev-parse --show-toplevel)
     local worktree_dir="$git_root/.worktrees/${branch_name}"
-    
+
     ensure_git_repo
+    require_config
     setup_worktrees_dir
-    
+
     echo -e "${BLUE}🚀 Creating new worktree...${NC}"
     echo "Branch: $branch_name"
     echo "Base: $base_branch"
     echo "Directory: $worktree_dir"
-    
+
     # Create the worktree in organized structure
     git worktree add -b "$branch_name" "$worktree_dir" "$base_branch"
-    
+
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Worktree created successfully!${NC}"
         echo -e "${BLUE}📂 Directory: $(realpath $worktree_dir)${NC}"
-        
+
         # Create a .git-wt-session file for session management
         echo "branch=$branch_name" > "$worktree_dir/.git-wt-session"
         echo "created=$(date -Iseconds)" >> "$worktree_dir/.git-wt-session"
         echo "base_branch=$base_branch" >> "$worktree_dir/.git-wt-session"
-        
-        # Create symlink if requested
-        if [ "$create_symlink" = true ]; then
-            local repo_name=$(basename "$git_root")
-            local symlink_name="${repo_name}-${branch_name}"
-            local symlink_path="../$symlink_name"
-            
-            echo -e "${BLUE}🔗 Creating symlink...${NC}"
-            echo "   Target: $worktree_dir"
-            echo "   Link: $symlink_path"
-            
-            if ln -sf "$worktree_dir" "$symlink_path"; then
-                echo -e "${GREEN}✅ Symlink created successfully!${NC}"
-                echo -e "${BLUE}🔗 Link: $symlink_path -> $worktree_dir${NC}"
-                echo "has_symlink=true" >> "$worktree_dir/.git-wt-session"
-                echo "symlink_path=$symlink_path" >> "$worktree_dir/.git-wt-session"
-            else
-                echo -e "${RED}❌ Failed to create symlink${NC}"
-                echo -e "${YELLOW}⚠️  Continuing without symlink...${NC}"
-            fi
-            echo ""
+
+        echo ""
+
+        # Execute setup actions from YAML configuration
+        cd "$git_root"
+        if ! execute_setup_actions "$git_root" "$worktree_dir" "$branch_name" "$base_branch"; then
+            echo -e "${RED}❌ Setup actions failed${NC}"
+            echo -e "${YELLOW}⚠️  Worktree was created but setup failed${NC}"
+            echo -e "${YELLOW}💡 You may want to remove it: git wt remove $branch_name${NC}"
+            return 1
         fi
-        
-        # Copy and modify .env file
-        local root_env="$git_root/.env"
-        local worktree_env="$worktree_dir/.env"
-        
-        if [ -f "$root_env" ]; then
-            echo -e "${BLUE}📋 Copying .env file to worktree...${NC}"
-            cp "$root_env" "$worktree_env"
-            
-            # Handle database setup based on -db flag
-            if [ "$copy_database" = true ]; then
-                # Always modify DATABASE_URL when -db flag is used
-                _modify_database_url "$worktree_env" "$branch_name"
-                
-                echo ""
-                echo -e "${BLUE}🗄️  Database setup for worktree...${NC}"
-                echo -e "${GREEN}✅ Environment URLs updated for separate database${NC}"
-                
-                # Then ask if user wants to copy the database
-                if _copy_database "$root_env" "$branch_name"; then
-                    echo -e "${GREEN}✅ Database copied successfully${NC}"
-                else
-                    echo -e "${YELLOW}⚠️  Database copy skipped${NC}"
-                    echo -e "${BLUE}💡 The .env file is configured for the new database name.${NC}"
-                    echo -e "${BLUE}   You'll need to manually create or copy the database.${NC}"
-                fi
-            else
-                echo -e "${BLUE}📝 Using original DATABASE_URL (no -db flag)${NC}"
-            fi
-            
-            echo -e "${GREEN}✅ Environment file configured for worktree${NC}"
-        else
-            echo -e "${YELLOW}⚠️  No .env file found in repository root${NC}"
-            if [ "$copy_database" = true ]; then
-                echo -e "${RED}❌ Cannot copy database without .env file${NC}"
-            fi
-        fi
-        
+
         echo ""
         echo -e "${GREEN}✅ Worktree created successfully!${NC}"
         echo ""
-        
+
         # Ask if user wants to switch to the new worktree
         echo -n "Switch to the new worktree with shell? [Y/n]: "
         read -n 1 -r response
         echo  # Add newline after single character input
-        
+
         case $response in
             [nN][oO]|[nN])
                 echo -e "${BLUE}📋 Worktree ready for use${NC}"
                 echo ""
                 echo "Next steps:"
                 echo "1. cd $worktree_dir"
-                echo "2. Your app is ready to start with isolated database"
+                echo "2. Your worktree is ready to use"
                 echo "3. Use: claude code 'your task description'"
                 echo ""
                 echo "Or use: git wt switch -s $branch_name"
@@ -775,8 +490,8 @@ cmd_new() {
                 # Default to yes (Y or Enter or anything else)
                 echo -e "${BLUE}🔄 Switching to worktree with shell...${NC}"
                 echo ""
-                # Call the existing switch function with shell option and node_modules checking
-                cmd_switch -s --check-node-modules "$branch_name"
+                # Call the existing switch function with shell option
+                cmd_switch -s "$branch_name"
                 ;;
         esac
     else
@@ -787,7 +502,7 @@ cmd_new() {
 
 cmd_list() {
     local show_details=false
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -807,36 +522,36 @@ cmd_list() {
                 ;;
         esac
     done
-    
+
     ensure_git_repo
-    
+
     if [ ! -d ".worktrees" ]; then
         echo "No .worktrees directory found"
         return 0
     fi
-    
+
     if [ "$show_details" = true ]; then
         # Show detailed output (original format)
         echo -e "${BLUE}📋 Git Worktrees${NC}"
         echo "========================"
-        
+
         local found_any=false
         for worktree_dir in .worktrees/*/; do
             if [ -d "$worktree_dir" ]; then
                 found_any=true
                 local branch_name=$(basename "$worktree_dir")
                 local relative_path="$worktree_dir"
-                
+
                 echo ""
                 echo -e "${GREEN}🌿 Branch: $branch_name${NC}"
                 echo -e "${BLUE}📁 Path: $relative_path${NC}"
-                
+
                 # Get commit info
                 if [ -d "$worktree_dir/.git" ] || [ -f "$worktree_dir/.git" ]; then
                     cd "$worktree_dir"
                     local commit_info=$(git log -1 --format='%h %s' 2>/dev/null || echo 'No commits')
                     echo "💾 Commit: $commit_info"
-                    
+
                     # Check session info if available
                     if [ -f ".git-wt-session" ]; then
                         local created=$(grep "created=" .git-wt-session | cut -d'=' -f2)
@@ -846,7 +561,7 @@ cmd_list() {
                             echo "📝 Task: $task"
                         fi
                     fi
-                    
+
                     # Check for uncommitted changes and untracked files
                     local git_status=$(git status --porcelain 2>/dev/null)
                     if [ -n "$git_status" ]; then
@@ -858,7 +573,7 @@ cmd_list() {
                 fi
             fi
         done
-        
+
         if [ "$found_any" != true ]; then
             echo "No worktrees found in .worktrees/"
         fi
@@ -867,7 +582,7 @@ cmd_list() {
         echo -e "${BLUE}📋 Git Worktrees${NC}"
         echo "========================"
         echo ""
-        
+
         local found_any=false
         for worktree_dir in .worktrees/*/; do
             if [ -d "$worktree_dir" ]; then
@@ -875,7 +590,7 @@ cmd_list() {
                 local branch_name=$(basename "$worktree_dir")
                 local status="Unknown"
                 local status_color=""
-                
+
                 # Get status
                 if [ -d "$worktree_dir/.git" ] || [ -f "$worktree_dir/.git" ]; then
                     cd "$worktree_dir"
@@ -890,11 +605,11 @@ cmd_list() {
                     fi
                     cd - > /dev/null
                 fi
-                
+
                 echo -e "${GREEN}🌿 ${branch_name}${NC} - ${status_color}${status}${NC}"
             fi
         done
-        
+
         if [ "$found_any" != true ]; then
             echo "No worktrees found in .worktrees/"
         fi
@@ -903,20 +618,15 @@ cmd_list() {
 
 cmd_switch() {
     local create_shell=false
-    local check_node_modules=false
     local branch_name=""
-    
+
     ensure_git_repo
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -s|--shell)
                 create_shell=true
-                shift
-                ;;
-            --check-node-modules)
-                check_node_modules=true
                 shift
                 ;;
             -*)
@@ -930,7 +640,7 @@ cmd_switch() {
                 ;;
         esac
     done
-    
+
     if [ -z "$branch_name" ]; then
         echo "Available worktrees:"
         cmd_list
@@ -938,35 +648,28 @@ cmd_switch() {
         echo "Usage: git wt switch [-s|--shell] <branch-name>"
         return 1
     fi
-    
+
     # Get git root before changing directories
     local git_root=$(git rev-parse --show-toplevel)
     local worktree_path="$git_root/.worktrees/$branch_name"
-    
+
     if [ -d "$worktree_path" ]; then
         echo -e "${BLUE}🔄 Switching to worktree: $branch_name${NC}"
         cd "$worktree_path"
-        
+
         # Show current session info
         if [ -f ".git-wt-session" ]; then
             echo -e "${BLUE}📋 Session info:${NC}"
             cat .git-wt-session
         fi
-        
+
         echo ""
         echo "Current directory: $(pwd)"
         echo "Git status:"
         git status --short
         echo ""
-        
+
         if [ "$create_shell" = true ]; then
-            # Check for node_modules copying only if explicitly requested
-            if [ "$check_node_modules" = true ]; then
-                if _prompt_copy_node_modules "$worktree_path" "$git_root"; then
-                    _copy_node_modules
-                fi
-            fi
-            
             # Start worktree shell
             echo ""
             echo -e "${GREEN}Starting worktree shell. Type 'exit' or use 'git wt root' to return.${NC}"
@@ -989,9 +692,9 @@ cmd_switch() {
 cmd_resume() {
     local create_shell=false
     local branch_name=""
-    
+
     ensure_git_repo
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -1010,7 +713,7 @@ cmd_resume() {
                 ;;
         esac
     done
-    
+
     if [ -z "$branch_name" ]; then
         echo "Available worktrees to resume:"
         ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
@@ -1018,19 +721,19 @@ cmd_resume() {
         echo "Usage: git wt resume [-s|--shell] <branch-name>"
         return 1
     fi
-    
+
     if [ ! -d ".worktrees/$branch_name" ]; then
         echo -e "${RED}❌ Worktree '$branch_name' not found${NC}"
         return 1
     fi
-    
+
     # Get git root before changing directories
     local git_root=$(git rev-parse --show-toplevel)
-    
+
     cd ".worktrees/$branch_name"
-    
+
     echo -e "${BLUE}🔄 Resuming work in: $branch_name${NC}"
-    
+
     # Show session info if available
     if [ -f ".git-wt-session" ]; then
         echo -e "${BLUE}📋 Previous session:${NC}"
@@ -1044,18 +747,13 @@ cmd_resume() {
         done
         echo ""
     fi
-    
+
     echo "Current status:"
     git status --short
     echo ""
     echo "Ready to continue work in $(pwd)"
-    
+
     if [ "$create_shell" = true ]; then
-        # Check for node_modules copying before starting shell
-        if _prompt_copy_node_modules "$(pwd)" "$git_root"; then
-            _copy_node_modules
-        fi
-        
         # Start worktree shell
         echo ""
         echo -e "${GREEN}Starting worktree shell. Type 'exit' or use 'git wt root' to return.${NC}"
@@ -1071,10 +769,10 @@ cmd_resume() {
 
 cmd_status() {
     ensure_git_repo
-    
+
     echo -e "${BLUE}📊 Git Worktrees Status${NC}"
     echo "================================"
-    
+
     # Show current location
     echo "📍 Current location: $(pwd)"
     if [[ "$(pwd)" == *".worktrees/"* ]]; then
@@ -1083,15 +781,15 @@ cmd_status() {
         echo "   You are in the main repository"
     fi
     echo ""
-    
+
     # Show all worktrees with detailed status
     cmd_list
-    
+
     echo ""
     echo -e "${BLUE}📈 Summary:${NC}"
     local total_worktrees=$(ls -1d .worktrees/*/ 2>/dev/null | wc -l)
     echo "   Total worktrees: $total_worktrees"
-    
+
     # Count worktrees with changes
     local dirty_count=0
     for worktree_dir in .worktrees/*/; do
@@ -1110,19 +808,19 @@ cmd_status() {
 
 cmd_clean() {
     ensure_git_repo
-    
+
     echo -e "${YELLOW}🧹 Git worktree cleanup${NC}"
     echo ""
-    
+
     if [ ! -d ".worktrees" ]; then
         echo "No .worktrees directory found"
         return 0
     fi
-    
+
     echo "Current worktrees in .worktrees/:"
     cmd_list
     echo ""
-    
+
     # Show merged branches that can be cleaned up
     local default_branch=$(get_default_branch)
     echo "Branches that have been merged to $default_branch:"
@@ -1132,9 +830,9 @@ cmd_clean() {
         fi
     done
     echo ""
-    
+
     read -p "Enter branch name to remove (or 'auto' for all merged): " branch_name
-    
+
     if [ "$branch_name" = "auto" ]; then
         # Auto-cleanup merged branches
         local default_branch=$(get_default_branch)
@@ -1160,30 +858,30 @@ cmd_clean() {
 cmd_task() {
     local task_description="$1"
     local branch_name="${2:-task-$(date +%Y%m%d-%H%M%S)}"
-    
+
     if [ -z "$task_description" ]; then
         echo "Usage: git wt task 'task description' [branch-name]"
         echo "Example: git wt task 'Add user authentication system' auth-feature"
         exit 1
     fi
-    
+
     ensure_git_repo
-    
+
     # Create the worktree
     cmd_new "$branch_name"
-    
+
     if [ $? -eq 0 ]; then
         # Switch to the new worktree
         cd ".worktrees/$branch_name"
-        
+
         # Save task description to session file
         echo "task=$task_description" >> .git-wt-session
         echo "task_started=$(date -Iseconds)" >> .git-wt-session
-        
+
         echo -e "${BLUE}🤖 Starting Claude Code task in worktree...${NC}"
         echo "Task: $task_description"
         echo ""
-        
+
         # Start Claude Code with the task
         claude code "$task_description"
     fi
@@ -1191,11 +889,10 @@ cmd_task() {
 
 cmd_remove() {
     local force_remove=false
-    local drop_database=false
     local branch_name=""
-    
+
     ensure_git_repo
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -1203,13 +900,9 @@ cmd_remove() {
                 force_remove=true
                 shift
                 ;;
-            -db|--database)
-                drop_database=true
-                shift
-                ;;
             -*)
                 echo -e "${RED}Unknown option: $1${NC}"
-                echo "Usage: git wt remove [-f|--force] [-db] <branch-name>"
+                echo "Usage: git wt remove [-f|--force] <branch-name>"
                 return 1
                 ;;
             *)
@@ -1218,32 +911,32 @@ cmd_remove() {
                 ;;
         esac
     done
-    
+
     if [ -z "$branch_name" ]; then
         echo "Available worktrees to remove:"
         cmd_list
         echo ""
-        echo "Usage: git wt remove [-f|--force] [-db] <branch-name>"
+        echo "Usage: git wt remove [-f|--force] <branch-name>"
         return 1
     fi
-    
+
     local git_root=$(git rev-parse --show-toplevel)
     local worktree_path="$git_root/.worktrees/$branch_name"
-    
+
     if [ ! -d "$worktree_path" ]; then
         echo -e "${RED}❌ Worktree '$branch_name' not found in .worktrees/${NC}"
         echo "Available worktrees:"
         ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
         return 1
     fi
-    
+
     # Check if currently in the worktree we're trying to remove
     if _is_in_worktree_shell && [ "$GIT_WT_BRANCH" = "$branch_name" ]; then
         echo -e "${RED}❌ Cannot remove worktree '$branch_name' - you are currently in its shell${NC}"
         echo -e "${YELLOW}💡 Use 'git wt root' to exit the worktree shell first${NC}"
         return 1
     fi
-    
+
     # Check for uncommitted changes unless force flag is used
     if [ "$force_remove" != true ]; then
         cd "$worktree_path"
@@ -1254,61 +947,24 @@ cmd_remove() {
             git status --short
             echo ""
             echo -e "${YELLOW}💡 Use 'git wt remove -f $branch_name' to force removal${NC}"
-            echo -e "${YELLOW}💡 Use 'git wt remove -db $branch_name' to also drop the database${NC}"
             cd - > /dev/null
             return 1
         fi
         cd - > /dev/null
     fi
-    
-    # Drop database if -db flag was used
-    if [ "$drop_database" = true ]; then
-        echo ""
-        echo -e "${BLUE}🗄️  Database removal requested...${NC}"
-        if _drop_database "$worktree_path/.env"; then
-            echo -e "${GREEN}✅ Database dropped successfully${NC}"
-        else
-            echo -e "${YELLOW}⚠️  Database drop failed or was cancelled${NC}"
-            echo -e "${YELLOW}   Continuing with worktree removal...${NC}"
-        fi
-        echo ""
-    fi
-    
-    # Check if worktree has a symlink and remove it
-    local has_symlink=""
-    local symlink_path=""
-    
-    if [ -f "$worktree_path/.git-wt-session" ]; then
-        has_symlink=$(grep "^has_symlink=" "$worktree_path/.git-wt-session" | cut -d'=' -f2)
-        symlink_path=$(grep "^symlink_path=" "$worktree_path/.git-wt-session" | cut -d'=' -f2-)
-    fi
-    
-    if [ "$has_symlink" = "true" ] && [ -n "$symlink_path" ]; then
-        echo -e "${BLUE}🔗 Checking for symlink...${NC}"
-        echo "   Symlink path: $symlink_path"
-        
-        if [ -L "$symlink_path" ]; then
-            echo -e "${YELLOW}🗑️  Removing symlink...${NC}"
-            if rm "$symlink_path"; then
-                echo -e "${GREEN}✅ Symlink removed successfully${NC}"
-            else
-                echo -e "${RED}❌ Failed to remove symlink${NC}"
-                echo -e "${YELLOW}⚠️  Please manually remove: $symlink_path${NC}"
-            fi
-        else
-            echo -e "${YELLOW}⚠️  Symlink not found or not a symlink: $symlink_path${NC}"
-        fi
-        echo ""
-    fi
-    
+
+    # Execute teardown actions before removing worktree
+    cd "$git_root"
+    execute_teardown_actions "$git_root" "$worktree_path" "$branch_name"
+
     echo -e "${YELLOW}🗑️  Removing worktree: $branch_name${NC}"
-    
+
     # Remove the worktree
     git worktree remove "$worktree_path" --force 2>/dev/null
-    
+
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Worktree removed successfully${NC}"
-        
+
         # Delete the branch
         if git show-ref --verify --quiet "refs/heads/$branch_name"; then
             if [ "$force_remove" = true ]; then
@@ -1330,7 +986,7 @@ cmd_remove() {
         else
             echo -e "${YELLOW}⚠️  Branch '$branch_name' not found or already deleted${NC}"
         fi
-        
+
         echo ""
         echo -e "${BLUE}📊 Remaining worktrees:${NC}"
         cmd_list
@@ -1340,94 +996,36 @@ cmd_remove() {
     fi
 }
 
-cmd_db_copy() {
-    ensure_git_repo
-    
-    # Check if we're in a worktree
-    local current_dir=$(pwd)
-    local git_root=$(git rev-parse --show-toplevel)
-    
-    if [[ ! "$current_dir" == *".worktrees/"* ]]; then
-        echo -e "${RED}❌ You must be in a worktree to copy the database${NC}"
-        echo -e "${YELLOW}💡 Use 'git wt switch <branch>' to enter a worktree first${NC}"
-        return 1
-    fi
-    
-    # Extract worktree name from current path
-    local worktree_name=$(basename "$current_dir")
-    
-    # Check if .env file exists in current worktree
-    local worktree_env="$current_dir/.env"
-    if [ ! -f "$worktree_env" ]; then
-        echo -e "${RED}❌ No .env file found in current worktree${NC}"
-        echo -e "${YELLOW}💡 Make sure you have a .env file in your worktree${NC}"
-        return 1
-    fi
-    
-    # Check if there's a root .env file to copy from
-    local root_env="$git_root/.env"
-    if [ ! -f "$root_env" ]; then
-        echo -e "${RED}❌ No .env file found in repository root${NC}"
-        echo -e "${YELLOW}💡 A root .env file is needed to extract the original database URL${NC}"
-        return 1
-    fi
-    
-    echo -e "${BLUE}🗄️  Database copy for worktree: ${worktree_name}${NC}"
-    echo "   Current directory: $current_dir"
-    echo "   Root .env: $root_env"
-    echo "   Worktree .env: $worktree_env"
-    echo ""
-    
-    echo -e "${BLUE}🗄️  Copying database...${NC}"
-    # Copy the database using the root .env as source
-    if _copy_database "$root_env" "$worktree_name"; then
-        echo ""
-        echo -e "${BLUE}📝 Updating .env file with worktree-specific database URL...${NC}"
-        _modify_database_url "$worktree_env" "$worktree_name"
-        echo ""
-        echo -e "${GREEN}✅ Database copy completed successfully!${NC}"
-        echo -e "${BLUE}💡 Your worktree now has its own isolated database${NC}"
-        echo "   Database name: $(grep "^DATABASE_URL=" "$worktree_env" | head -1 | cut -d'=' -f2- | tr -d '"' | sed 's|.*/||')"
-    else
-        echo ""
-        echo -e "${YELLOW}⚠️  Database copy was skipped or failed${NC}"
-        echo -e "${BLUE}📝 Updating .env file with worktree-specific database URL...${NC}"
-        _modify_database_url "$worktree_env" "$worktree_name"
-        echo -e "${BLUE}💡 Your .env file has been updated with the new database name${NC}"
-        echo -e "${BLUE}   You'll need to manually create or copy the database${NC}"
-    fi
-}
-
 cmd_root() {
     ensure_git_repo
-    
+
     # Check if we're in a worktree shell and exit if so
     if _exit_worktree_shell; then
         return 0
     fi
-    
+
     # Regular root switching logic
     local git_root=$(git rev-parse --show-toplevel)
-    
+
     echo -e "${BLUE}🏠 Switching to repository root...${NC}"
     cd "$git_root"
-    
+
     echo "📍 Current directory: $(pwd)"
     echo "🌿 Current branch: $(git branch --show-current)"
     echo ""
-    
+
     # Show git status
     echo "Git status:"
     git status --short
     echo ""
-    
+
     # Show available worktrees
     if [ -d ".worktrees" ]; then
         echo -e "${BLUE}📋 Available worktrees:${NC}"
         ls -1 .worktrees/ 2>/dev/null || echo "No worktrees found"
         echo ""
     fi
-    
+
     echo -e "${GREEN}✅ Now in repository root directory${NC}"
 }
 
@@ -1436,6 +1034,10 @@ cmd_root() {
 # =============================================================================
 
 case "${1:-help}" in
+    "init")
+        shift
+        cmd_init "$@"
+        ;;
     "new"|"add")
         shift
         cmd_new "$@"
@@ -1468,9 +1070,6 @@ case "${1:-help}" in
     "task"|"tk")
         shift
         cmd_task "$@"
-        ;;
-    "db_copy"|"dbcopy"|"copydb")
-        cmd_db_copy
         ;;
     "help"|"-h"|"--help"|*)
         show_help

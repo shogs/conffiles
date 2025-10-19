@@ -1,0 +1,18 @@
+version: 1
+
+setup:
+  - name: copy_env
+    description: "Copy .env file"
+    script: |
+      if [ -f .env ]; then
+        cp .env "$WORKTREE_PATH/.env"
+      fi
+
+  - name: npm_install
+    description: "Run npm install"
+    script: |
+      if [ -f "$WORKTREE_PATH/package.json" ]; then
+        cd "$WORKTREE_PATH" && npm install
+      fi
+
+teardown: []

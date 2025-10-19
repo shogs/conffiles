@@ -1,0 +1,75 @@
+version: 1
+
+setup:
+  - name: copy_env
+    description: "Copy .env file"
+    script: |
+      if [ -f .env ]; then
+        cp .env "$WORKTREE_PATH/.env"
+      fi
+
+  - name: venv
+    description: "Create Python virtual environment"
+    script: |
+      if [ ! -f requirements.txt ]; then
+        exit 0
+      fi
+
+      echo "🐍 How to handle Python virtual environment?"
+      echo "  c) Create new venv"
+      echo "  s) Symlink to main venv"
+      echo "  n) Skip"
+      echo -n "Choice [c/s/n]: "
+      read -n 1 -r choice
+      echo
+
+      case $choice in
+        c|C)
+          cd "$WORKTREE_PATH"
+          python -m venv venv
+          ./venv/bin/pip install -r requirements.txt
+          ;;
+        s|S)
+          ln -sf "$GIT_ROOT/venv" "$WORKTREE_PATH/venv"
+          ;;
+        *)
+          echo "Skipped"
+          ;;
+      esac
+
+  - name: database
+    description: "Copy database and run migrations"
+    script: |
+      if [ ! -f "$WORKTREE_PATH/.env" ]; then
+        exit 0
+      fi
+
+      if ! grep -q "^DATABASE_URL=" "$WORKTREE_PATH/.env"; then
+        exit 0
+      fi
+
+      echo -n "Copy database and run migrations? [Y/n]: "
+      read -n 1 -r response
+      echo
+
+      case $response in
+        [nN])
+          echo "Skipped"
+          ;;
+        *)
+          ORIG_URL=$(grep "^DATABASE_URL=" "$GIT_ROOT/.env" | cut -d'=' -f2- | tr -d '"')
+          DB_NAME=$(echo "$ORIG_URL" | sed 's|.*/\([^?]*\).*|\1|')
+          NEW_DB="${DB_NAME}-${WORKTREE_NAME}"
+
+          psql "$ORIG_URL" -c "CREATE DATABASE \"$NEW_DB\""
+          pg_dump "$ORIG_URL" | psql "${ORIG_URL/$DB_NAME/$NEW_DB}"
+
+          sed -i.bak "s|$DB_NAME|$NEW_DB|" "$WORKTREE_PATH/.env"
+          rm -f "$WORKTREE_PATH/.env.bak"
+
+          cd "$WORKTREE_PATH"
+          ./venv/bin/python manage.py migrate
+          ;;
+      esac
+
+teardown: []
