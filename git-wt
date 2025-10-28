@@ -183,7 +183,8 @@ execute_setup_actions() {
 
         echo -e "${GREEN}▶ $desc${NC}"
 
-        eval "$script"
+        # Run script in subshell so 'exit' doesn't terminate main process
+        (eval "$script")
         local exit_code=$?
 
         if [ $exit_code -eq 1 ]; then
@@ -237,7 +238,8 @@ execute_teardown_actions() {
 
         echo -e "${YELLOW}▶ $desc${NC}"
 
-        eval "$script"
+        # Run script in subshell so 'exit' doesn't terminate main process
+        (eval "$script")
 
         echo ""
     done
@@ -908,12 +910,26 @@ cmd_remove() {
     cd "$git_root"
     execute_teardown_actions "$git_root" "$worktree_path" "$branch_name"
 
+    # Ensure we're back in git root and not in the worktree we're about to remove
+    cd "$git_root"
+
+    # Double-check we're not inside the worktree path
+    local current_dir=$(pwd)
+    if [[ "$current_dir" == "$worktree_path"* ]]; then
+        echo -e "${RED}❌ Cannot remove worktree - still inside it: $current_dir${NC}"
+        echo -e "${YELLOW}💡 Changing to git root: $git_root${NC}"
+        cd "$git_root"
+    fi
+
     echo -e "${YELLOW}🗑️  Removing worktree: $branch_name${NC}"
+    echo "   Current directory: $(pwd)"
+    echo "   Worktree path: $worktree_path"
 
     # Remove the worktree
-    git worktree remove "$worktree_path" --force 2>/dev/null
+    local remove_output=$(git worktree remove "$worktree_path" --force 2>&1)
+    local remove_exit_code=$?
 
-    if [ $? -eq 0 ]; then
+    if [ $remove_exit_code -eq 0 ]; then
         echo -e "${GREEN}✅ Worktree removed successfully${NC}"
 
         # Delete the branch
@@ -943,6 +959,8 @@ cmd_remove() {
         cmd_list
     else
         echo -e "${RED}❌ Failed to remove worktree${NC}"
+        echo "   Error output: $remove_output"
+        echo "   Exit code: $remove_exit_code"
         return 1
     fi
 }
