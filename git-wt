@@ -38,6 +38,11 @@ show_help() {
     echo -e "  ${BLUE}task${NC} 'description' [branch]          - Create worktree + start Claude task"
     echo -e "  ${BLUE}help${NC}                                 - Show this help"
     echo ""
+    echo -e "${YELLOW}📦 Requirements:${NC}"
+    echo -e "  ${BLUE}yq${NC} - YAML processor (required for setup/teardown actions)"
+    echo "     Install: brew install yq"
+    echo "     Homepage: https://github.com/mikefarah/yq"
+    echo ""
     echo -e "${YELLOW}📁 Structure: All worktrees are created in .worktrees/ (auto-gitignored)${NC}"
     echo -e "${YELLOW}🔗 Integration: Works seamlessly with Claude Code slash commands${NC}"
     echo ""
@@ -150,16 +155,14 @@ execute_setup_actions() {
     pushd . > /dev/null
 
     if ! command -v yq >/dev/null 2>&1; then
-        if ! command -v python3 >/dev/null 2>&1; then
-            echo -e "${RED}❌ Neither yq nor python3 available${NC}"
-            echo -e "${YELLOW}💡 Install yq: brew install yq${NC}"
-            popd > /dev/null
-            exit 1
-        fi
-        execute_setup_actions_python
-        local result=$?
+        echo -e "${RED}❌ yq is required to run YAML-based setup actions${NC}"
+        echo -e "${YELLOW}💡 Install yq: brew install yq${NC}"
+        echo ""
+        echo -e "${BLUE}📦 yq is a lightweight YAML processor for bash${NC}"
+        echo "   Homepage: https://github.com/mikefarah/yq"
+        echo ""
         popd > /dev/null
-        return $result
+        exit 1
     fi
 
     local setup_count=$(yq eval '.setup | length' .git-wt.yaml 2>/dev/null)
@@ -210,12 +213,11 @@ execute_teardown_actions() {
     pushd . > /dev/null
 
     if ! command -v yq >/dev/null 2>&1; then
-        if command -v python3 >/dev/null 2>&1; then
-            execute_teardown_actions_python
-        fi
-        local result=$?
+        # For teardown, we're lenient - just skip if yq not available
+        echo -e "${YELLOW}⚠️  yq not available, skipping teardown actions${NC}"
+        echo -e "${YELLOW}💡 Install yq: brew install yq${NC}"
         popd > /dev/null
-        return $result
+        return 0
     fi
 
     local teardown_count=$(yq eval '.teardown | length' .git-wt.yaml 2>/dev/null)
@@ -242,88 +244,6 @@ execute_teardown_actions() {
 
     popd > /dev/null
     return 0
-}
-
-execute_setup_actions_python() {
-    python3 <<'PYTHON_EOF'
-import yaml
-import os
-import sys
-import subprocess
-
-# Save current directory to restore after setup actions
-original_dir = os.getcwd()
-
-try:
-    with open('.git-wt.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-
-    setup = config.get('setup', [])
-
-    if not setup:
-        print('\033[0;34mℹ️  No setup actions configured\033[0m')
-        sys.exit(0)
-
-    print('\033[0;34m🔧 Running setup actions...\033[0m')
-    print()
-
-    for action in setup:
-        name = action.get('name', 'unnamed')
-        desc = action.get('description', 'No description')
-        script = action.get('script', '')
-
-        print(f'\033[0;32m▶ {desc}\033[0m')
-
-        result = subprocess.run(script, shell=True, executable='/bin/bash')
-
-        if result.returncode == 1:
-            print(f'\033[0;31m❌ Setup action "{name}" failed\033[0m')
-            sys.exit(1)
-
-        print()
-
-    print('\033[0;32m✅ Setup actions completed\033[0m')
-finally:
-    # Restore original directory
-    os.chdir(original_dir)
-PYTHON_EOF
-}
-
-execute_teardown_actions_python() {
-    python3 <<'PYTHON_EOF'
-import yaml
-import os
-import subprocess
-
-# Save current directory to restore after teardown actions
-original_dir = os.getcwd()
-
-try:
-    with open('.git-wt.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-
-    teardown = config.get('teardown', [])
-
-    if not teardown:
-        exit(0)
-
-    print('\033[0;34m🔧 Running teardown actions...\033[0m')
-    print()
-
-    for action in teardown:
-        name = action.get('name', 'unnamed')
-        desc = action.get('description', 'No description')
-        script = action.get('script', '')
-
-        print(f'\033[1;33m▶ {desc}\033[0m')
-
-        subprocess.run(script, shell=True, executable='/bin/bash')
-
-        print()
-finally:
-    # Restore original directory
-    os.chdir(original_dir)
-PYTHON_EOF
 }
 
 cmd_init() {
