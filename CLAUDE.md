@@ -70,20 +70,85 @@ This is a personal dotfiles repository containing configuration files for variou
 
 ## Git Worktree Management (git-wt)
 
-This repository includes a sophisticated git worktree management system that integrates with Claude Code for isolated development workflows.
+This repository includes a sophisticated git worktree management system that integrates with Claude Code for isolated development workflows. The system is **configuration-driven** via YAML files, making it flexible for any project type.
+
+### YAML Configuration System
+
+Git-wt uses `.git-wt.yaml` files to define setup and teardown actions for worktrees. This makes the tool:
+- **Technology-agnostic**: Works with any language/framework
+- **Fully customizable**: Each project defines its own workflow
+- **Transparent**: Users see exactly what bash scripts run
+- **Shareable**: Teams can commit `.git-wt.yaml` to version control
+
+### First-Time Setup
+
+**Before creating worktrees, you must initialize configuration:**
+
+```bash
+git wt init                          # Auto-detect project type
+git wt init --template=nodejs-full   # Use specific template
+git wt init --minimal                # Minimal configuration
+```
+
+Available templates:
+- **nodejs-full**: Complete Node.js setup with database, .env, node_modules handling
+- **nodejs-simple**: Simple Node.js with npm install
+- **python-django**: Python/Django with venv and database migrations
+- **minimal**: No setup actions (empty configuration)
+
+### YAML Configuration Format
+
+The `.git-wt.yaml` file contains setup and teardown actions:
+
+```yaml
+version: 1
+
+setup:
+  - name: copy_env
+    description: "Copy .env file"
+    script: |
+      if [ -f .env ]; then
+        cp .env "$WORKTREE_PATH/.env"
+      fi
+
+  - name: npm_install
+    description: "Install dependencies"
+    script: |
+      cd "$WORKTREE_PATH" && npm install
+
+teardown:
+  - name: cleanup
+    description: "Cleanup resources"
+    script: |
+      echo "Cleaning up..."
+```
+
+**Available environment variables in scripts:**
+- `$WORKTREE_NAME` - Branch/worktree name
+- `$WORKTREE_PATH` - Absolute path to worktree directory
+- `$GIT_ROOT` - Repository root path
+- `$BASE_BRANCH` - Base branch for this worktree
+
+**Script behavior:**
+- Scripts run in order defined in YAML
+- `exit 0` - Skip action silently (normal)
+- `exit 1` - Abort worktree creation (error)
+- All prompts, conditions, and logic are plain bash
 
 ### Components
 - **git-wt**: Git subcommand (symlinked to `~/bin/git-wt`) for `git wt` usage
-- **Session tracking**: `.claude-session` files maintain work context
+- **templates/**: YAML configuration templates for different project types
+- **Session tracking**: `.git-wt-session` files maintain work context
 - **Organized structure**: All worktrees created in `.worktrees/` directory
 - **Smart shell management**: Automatic shell creation and exit handling
 
 ### Available Commands
-- `git wt new [branch-name] [base-branch]` - Create new worktree with .env file
+- `git wt init [--template=<name>]` - Initialize .git-wt.yaml configuration (required first step)
+- `git wt new [branch-name] [base-branch]` - Create new worktree with configured setup
 - `git wt list [-d]` - List all worktrees with status (use -d for details)
 - `git wt switch [-s|--shell] <branch-name>` - Switch to existing worktree (optionally start shell)
 - `git wt resume [-s|--shell] <branch-name>` - Resume work with context restoration (optionally start shell)
-- `git wt remove [-f|--force] <branch-name>` - Remove worktree and branch (safely)
+- `git wt remove [-f|--force] <branch-name>` - Remove worktree and branch with configured teardown
 - `git wt root` - Switch back to repository root directory
 - `git wt status` - Show comprehensive worktree overview
 - `git wt clean` - Cleanup completed worktrees
@@ -96,8 +161,80 @@ This repository includes a sophisticated git worktree management system that int
 - **Organization**: Structured approach to concurrent development
 - **Flexible modes**: Lightweight directory changes or full shell isolation
 - **Smart navigation**: Automatic shell detection and exit handling
-- **Environment isolation**: Automatic .env copying with database URL modification
-- **Dependency isolation**: Optional node_modules copying for shell sessions
+- **Customizable setup**: Define any setup/teardown actions via YAML
+- **Team consistency**: Share `.git-wt.yaml` for standardized workflows
+
+### Example: Node.js Full Setup
+
+The `nodejs-full` template provides complete setup matching previous git-wt behavior:
+
+```yaml
+setup:
+  - name: copy_env
+    description: "Copy and modify .env file"
+    script: |
+      # Copies .env and modifies DATABASE_URL/DIRECT_URL
+      # to append worktree name (e.g., mydb -> mydb-feature-branch)
+      
+  - name: node_modules
+    description: "Handle node_modules directories"
+    script: |
+      # Interactive prompt: Copy/Symlink/npm install/Skip
+      
+  - name: database
+    description: "Copy PostgreSQL database"
+    script: |
+      # Prompts to copy database with modified name
+      # Creates and copies database contents if confirmed
+
+teardown:
+  - name: drop_database
+    description: "Drop worktree database"
+    script: |
+      # Prompts to drop database (requires typing 'yes')
+      # Safely removes isolated database
+```
+
+### Customization Examples
+
+**Add custom dependency installation:**
+```yaml
+setup:
+  - name: install_deps
+    description: "Install project dependencies"
+    script: |
+      cd "$WORKTREE_PATH"
+      npm install
+      npm run build
+```
+
+**Add database seeding:**
+```yaml
+setup:
+  - name: seed_database
+    description: "Seed database with test data"
+    script: |
+      cd "$WORKTREE_PATH"
+      npm run db:seed
+```
+
+**Add Docker container:**
+```yaml
+setup:
+  - name: docker_container
+    description: "Start isolated Docker container"
+    script: |
+      docker run -d --name "app-$WORKTREE_NAME" \
+        -v "$WORKTREE_PATH:/app" \
+        my-app:latest
+
+teardown:
+  - name: stop_container
+    description: "Stop and remove Docker container"
+    script: |
+      docker stop "app-$WORKTREE_NAME"
+      docker rm "app-$WORKTREE_NAME"
+```
 
 ## Claude Commands Integration
 

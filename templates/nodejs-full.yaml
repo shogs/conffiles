@@ -1,0 +1,179 @@
+version: 1
+
+setup:
+  - name: copy_env
+    description: "Copy .env file"
+    script: |
+      if [ ! -f .env ]; then
+        exit 0
+      fi
+
+      cp .env "$WORKTREE_PATH/.env"
+      echo "✅ Copied .env file to worktree"
+
+  - name: node_modules
+    description: "Handle node_modules directories"
+    script: |
+      if [ ! -d node_modules ]; then
+        exit 0
+      fi
+
+      echo "📦 Found node_modules. What would you like to do?"
+      echo "  c) Copy all"
+      echo "  s) Symlink"
+      echo "  i) npm install"
+      echo "  n) Skip"
+      echo -n "Choice [c/s/i/n]: "
+      read -n 1 -r choice
+      echo
+
+      case $choice in
+        c|C)
+          echo "📋 Copying node_modules..."
+          if command -v rsync >/dev/null 2>&1; then
+            rsync -a --info=progress2 "$GIT_ROOT/node_modules/" "$WORKTREE_PATH/node_modules/"
+          else
+            cp -R "$GIT_ROOT/node_modules" "$WORKTREE_PATH/node_modules"
+          fi
+          echo "✅ Copied successfully"
+          ;;
+        s|S)
+          echo "🔗 Creating symlink..."
+          ln -sf "$GIT_ROOT/node_modules" "$WORKTREE_PATH/node_modules"
+          echo "✅ Symlink created"
+          ;;
+        i|I)
+          echo "📥 Running npm install..."
+          cd "$WORKTREE_PATH" && npm install
+          ;;
+        *)
+          echo "⏭️  Skipped"
+          ;;
+      esac
+
+  - name: database
+    description: "Setup isolated database (optional)"
+    script: |
+      if [ ! -f "$WORKTREE_PATH/.env" ]; then
+        exit 0
+      fi
+
+      if ! grep -q "^DATABASE_URL=.*postgres" "$WORKTREE_PATH/.env"; then
+        exit 0
+      fi
+
+      ORIG_URL=$(grep "^DATABASE_URL=" "$GIT_ROOT/.env" | cut -d'=' -f2- | tr -d '"')
+      ORIG_DB=$(echo "$ORIG_URL" | sed 's|.*/\([^?]*\).*|\1|')
+      NEW_DB="${ORIG_DB}-${WORKTREE_NAME}"
+
+      echo ""
+      echo "🗄️  Database isolation setup"
+      echo "   Current database: $ORIG_DB (shared with main repo)"
+      echo "   Isolated database: $NEW_DB (separate for this worktree)"
+      echo ""
+      echo "💡 Database isolation is useful when:"
+      echo "   • You need different database schema/migrations"
+      echo "   • You're testing data-destructive operations"
+      echo "   • You want independent test data"
+      echo ""
+      echo "⚠️  You'll share the database with main repo if you skip this."
+      echo ""
+      echo -n "Setup isolated database for this worktree? [y/N]: "
+      read -n 1 -r response
+      echo
+
+      case $response in
+        [yY])
+          echo ""
+          echo "📋 Setting up isolated database..."
+
+          # Modify DATABASE_URL and DIRECT_URL in .env
+          for var in DATABASE_URL DIRECT_URL; do
+            if grep -q "^${var}=" "$WORKTREE_PATH/.env"; then
+              sed -i.bak "s|\(^${var}=.*\)/\([^/?]*\)\(.*\)|\1/\2-$WORKTREE_NAME\3|" "$WORKTREE_PATH/.env"
+            fi
+          done
+          rm -f "$WORKTREE_PATH/.env.bak"
+
+          NEW_URL=$(grep "^DATABASE_URL=" "$WORKTREE_PATH/.env" | cut -d'=' -f2- | tr -d '"')
+
+          echo "✅ Updated .env with new database URLs"
+          echo "   New DATABASE_URL: $NEW_URL"
+          echo ""
+
+          echo -n "Copy existing database contents to $NEW_DB? [Y/n]: "
+          read -n 1 -r copy_response
+          echo
+
+          case $copy_response in
+            [nN])
+              echo "⏭️  Skipped database copy - you'll need to create/migrate manually"
+              ;;
+            *)
+              echo "📋 Creating database: $NEW_DB"
+              if ! psql "$ORIG_URL" -c "CREATE DATABASE \"$NEW_DB\"" 2>/dev/null; then
+                echo "❌ Failed to create database (it may already exist)"
+                exit 1
+              fi
+
+              echo "📋 Copying database contents..."
+              if pg_dump "$ORIG_URL" 2>/dev/null | psql "$NEW_URL" >/dev/null 2>&1; then
+                echo "✅ Database copied successfully"
+              else
+                echo "❌ Failed to copy database"
+                exit 1
+              fi
+              ;;
+          esac
+          ;;
+        *)
+          echo "⏭️  Skipped - using shared database: $ORIG_DB"
+          ;;
+      esac
+
+teardown:
+  - name: drop_database
+    description: "Drop worktree database (if isolated)"
+    script: |
+      if [ ! -f "$WORKTREE_PATH/.env" ]; then
+        exit 0
+      fi
+
+      if ! grep -q "^DATABASE_URL=.*postgres" "$WORKTREE_PATH/.env"; then
+        exit 0
+      fi
+
+      DB_URL=$(grep "^DATABASE_URL=" "$WORKTREE_PATH/.env" | cut -d'=' -f2- | tr -d '"')
+      DB_NAME=$(echo "$DB_URL" | sed 's|.*/\([^?]*\).*|\1|')
+
+      # Check if this is an isolated database (has worktree name suffix)
+      if [[ ! "$DB_NAME" == *"-${WORKTREE_NAME}" ]]; then
+        echo "⏭️  Skipping database drop (using shared database: $DB_NAME)"
+        exit 0
+      fi
+
+      ADMIN_URL=$(echo "$DB_URL" | sed "s|/$DB_NAME|/postgres|")
+
+      echo ""
+      echo "🗄️  Found isolated database for this worktree"
+      echo "   Database: $DB_NAME"
+      echo ""
+      echo "⚠️  WARNING: This will permanently delete the database and all its data!"
+      echo "   This action cannot be undone."
+      echo ""
+      echo -n "Drop isolated database? [y/N]: "
+      read -n 1 -r confirmation
+      echo
+
+      case $confirmation in
+        [yY])
+          if psql "$ADMIN_URL" -c "DROP DATABASE \"$DB_NAME\" WITH (FORCE)" 2>/dev/null; then
+            echo "✅ Database dropped successfully"
+          else
+            echo "❌ Failed to drop database"
+          fi
+          ;;
+        *)
+          echo "⏭️  Skipped - database preserved"
+          ;;
+      esac
