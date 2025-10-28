@@ -146,20 +146,27 @@ execute_setup_actions() {
     export WORKTREE_NAME="$worktree_name"
     export BASE_BRANCH="$base_branch"
 
+    # Save current directory to restore after setup actions
+    pushd . > /dev/null
+
     if ! command -v yq >/dev/null 2>&1; then
         if ! command -v python3 >/dev/null 2>&1; then
             echo -e "${RED}❌ Neither yq nor python3 available${NC}"
             echo -e "${YELLOW}💡 Install yq: brew install yq${NC}"
+            popd > /dev/null
             exit 1
         fi
         execute_setup_actions_python
-        return $?
+        local result=$?
+        popd > /dev/null
+        return $result
     fi
 
     local setup_count=$(yq eval '.setup | length' .git-wt.yaml 2>/dev/null)
 
     if [ "$setup_count" = "0" ] || [ "$setup_count" = "null" ] || [ -z "$setup_count" ]; then
         echo -e "${BLUE}ℹ️  No setup actions configured${NC}"
+        popd > /dev/null
         return 0
     fi
 
@@ -178,6 +185,7 @@ execute_setup_actions() {
 
         if [ $exit_code -eq 1 ]; then
             echo -e "${RED}❌ Setup action '$name' failed${NC}"
+            popd > /dev/null
             return 1
         fi
 
@@ -185,6 +193,7 @@ execute_setup_actions() {
     done
 
     echo -e "${GREEN}✅ Setup actions completed${NC}"
+    popd > /dev/null
     return 0
 }
 
@@ -197,16 +206,22 @@ execute_teardown_actions() {
     export WORKTREE_PATH="$worktree_path"
     export WORKTREE_NAME="$worktree_name"
 
+    # Save current directory to restore after teardown actions
+    pushd . > /dev/null
+
     if ! command -v yq >/dev/null 2>&1; then
         if command -v python3 >/dev/null 2>&1; then
             execute_teardown_actions_python
         fi
-        return $?
+        local result=$?
+        popd > /dev/null
+        return $result
     fi
 
     local teardown_count=$(yq eval '.teardown | length' .git-wt.yaml 2>/dev/null)
 
     if [ "$teardown_count" = "0" ] || [ "$teardown_count" = "null" ] || [ -z "$teardown_count" ]; then
+        popd > /dev/null
         return 0
     fi
 
@@ -225,6 +240,7 @@ execute_teardown_actions() {
         echo ""
     done
 
+    popd > /dev/null
     return 0
 }
 
@@ -235,63 +251,78 @@ import os
 import sys
 import subprocess
 
-with open('.git-wt.yaml', 'r') as f:
-    config = yaml.safe_load(f)
+# Save current directory to restore after setup actions
+original_dir = os.getcwd()
 
-setup = config.get('setup', [])
+try:
+    with open('.git-wt.yaml', 'r') as f:
+        config = yaml.safe_load(f)
 
-if not setup:
-    print('\033[0;34mℹ️  No setup actions configured\033[0m')
-    sys.exit(0)
+    setup = config.get('setup', [])
 
-print('\033[0;34m🔧 Running setup actions...\033[0m')
-print()
+    if not setup:
+        print('\033[0;34mℹ️  No setup actions configured\033[0m')
+        sys.exit(0)
 
-for action in setup:
-    name = action.get('name', 'unnamed')
-    desc = action.get('description', 'No description')
-    script = action.get('script', '')
-
-    print(f'\033[0;32m▶ {desc}\033[0m')
-
-    result = subprocess.run(script, shell=True, executable='/bin/bash')
-
-    if result.returncode == 1:
-        print(f'\033[0;31m❌ Setup action "{name}" failed\033[0m')
-        sys.exit(1)
-
+    print('\033[0;34m🔧 Running setup actions...\033[0m')
     print()
 
-print('\033[0;32m✅ Setup actions completed\033[0m')
+    for action in setup:
+        name = action.get('name', 'unnamed')
+        desc = action.get('description', 'No description')
+        script = action.get('script', '')
+
+        print(f'\033[0;32m▶ {desc}\033[0m')
+
+        result = subprocess.run(script, shell=True, executable='/bin/bash')
+
+        if result.returncode == 1:
+            print(f'\033[0;31m❌ Setup action "{name}" failed\033[0m')
+            sys.exit(1)
+
+        print()
+
+    print('\033[0;32m✅ Setup actions completed\033[0m')
+finally:
+    # Restore original directory
+    os.chdir(original_dir)
 PYTHON_EOF
 }
 
 execute_teardown_actions_python() {
     python3 <<'PYTHON_EOF'
 import yaml
+import os
 import subprocess
 
-with open('.git-wt.yaml', 'r') as f:
-    config = yaml.safe_load(f)
+# Save current directory to restore after teardown actions
+original_dir = os.getcwd()
 
-teardown = config.get('teardown', [])
+try:
+    with open('.git-wt.yaml', 'r') as f:
+        config = yaml.safe_load(f)
 
-if not teardown:
-    exit(0)
+    teardown = config.get('teardown', [])
 
-print('\033[0;34m🔧 Running teardown actions...\033[0m')
-print()
+    if not teardown:
+        exit(0)
 
-for action in teardown:
-    name = action.get('name', 'unnamed')
-    desc = action.get('description', 'No description')
-    script = action.get('script', '')
-
-    print(f'\033[1;33m▶ {desc}\033[0m')
-
-    subprocess.run(script, shell=True, executable='/bin/bash')
-
+    print('\033[0;34m🔧 Running teardown actions...\033[0m')
     print()
+
+    for action in teardown:
+        name = action.get('name', 'unnamed')
+        desc = action.get('description', 'No description')
+        script = action.get('script', '')
+
+        print(f'\033[1;33m▶ {desc}\033[0m')
+
+        subprocess.run(script, shell=True, executable='/bin/bash')
+
+        print()
+finally:
+    # Restore original directory
+    os.chdir(original_dir)
 PYTHON_EOF
 }
 
