@@ -7,6 +7,11 @@
 // custom settings, run the `open default settings` command
 // from the command palette or from `Zed` application menu.
 {
+  "buffer_font_family": ".ZedMono",
+  "disable_ai": false,
+  "outline_panel": {
+    "dock": "right"
+  },
   "git_panel": {
     "sort_by_path": true
   },
@@ -25,8 +30,8 @@
       "model": "claude-sonnet-4"
     }
   },
-  "theme": "Catppuccin Mocha",
-  "buffer_font_size": 13,
+  "theme": "Catppuccin Macchiato",
+  "buffer_font_size": 13.0,
   "vim_mode": true,
   "languages": {
     "Markdown": {
