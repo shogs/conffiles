@@ -7,6 +7,7 @@
 // custom settings, run the `open default settings` command
 // from the command palette or from `Zed` application menu.
 {
+  "ui_font_size": 14.0,
   "buffer_font_family": ".ZedMono",
   "disable_ai": false,
   "outline_panel": {
@@ -17,7 +18,6 @@
   },
   "context_servers": {
     "mcp-server-context7": {
-      "source": "extension",
       "enabled": true,
       "settings": {
         "default_minimum_tokens": "10000"

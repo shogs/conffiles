@@ -7,19 +7,50 @@
 // custom settings, run the `open default settings` command
 // from the command palette or from `Zed` application menu.
 {
-  "assistant": {
+  "buffer_font_family": ".ZedMono",
+  "disable_ai": false,
+  "outline_panel": {
+    "dock": "right"
+  },
+  "git_panel": {
+    "sort_by_path": true
+  },
+  "context_servers": {
+    "mcp-server-context7": {
+      "source": "extension",
+      "enabled": true,
+      "settings": {
+        "default_minimum_tokens": "10000"
+      }
+    }
+  },
+  "agent": {
     "default_model": {
       "provider": "zed.dev",
       "model": "claude-sonnet-4"
-    },
-    "version": "2"
+    }
   },
-  "theme": "Catppuccin Mocha",
-  "buffer_font_size": 13,
+  "theme": "Catppuccin Macchiato",
+  "buffer_font_size": 13.0,
   "vim_mode": true,
   "languages": {
     "Markdown": {
       "soft_wrap": "editor_width"
     }
-  }
+  },
+  //"buffer_font_family": "JetBrains Mono NL",
+  "buffer_font_features": {
+    // Disable ligatures:
+    "calt": false
+  },
+  "terminal": {
+    "font_family": "JetBrainsMono Nerd Font"
+  },
+  "minimap": {
+    "show": "always",
+    "thumb": "always",
+    "thumb_border": "left_open",
+    "current_line_highlight": null
+  },
+  "use_system_window_tabs": true
 }
