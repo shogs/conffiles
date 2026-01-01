@@ -60,4 +60,4 @@ mouse-scroll-multiplier = 0.5
 # macos-titlebar-style = tabs
 # window-decoration = auto
 
-unfocused-split-opacity = 1
+unfocused-split-opacity = 0.9
