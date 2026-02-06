@@ -1,0 +1,10 @@
+[
+  {
+    "context": "Editor && vim_mode == normal && !VimWaiting",
+    "bindings": {
+      "space space": "file_finder::Toggle",
+      "space e": "pane::RevealInProjectPanel",
+      "space /": "pane::DeploySearch",
+    },
+  },
+]
