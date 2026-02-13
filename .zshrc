@@ -140,7 +140,7 @@ eval "$(pyenv init -)"
 # eval "$(fzf --zsh)"
 
 alias wt='git wt'
-#alias gwt='git wt'
+alias wtdev='git wtdev'
 
 # bun completions
 [ -s "/Users/sash/.bun/_bun" ] && source "/Users/sash/.bun/_bun"
