@@ -7,6 +7,11 @@
 // custom settings, run the `open default settings` command
 // from the command palette or from `Zed` application menu.
 {
+  "agent_servers": {
+    "claude-acp": {
+      "type": "registry"
+    }
+  },
   "ui_font_size": 14.0,
   "buffer_font_family": ".ZedMono",
   "disable_ai": false,
@@ -31,7 +36,7 @@
       "model": "claude-sonnet-4"
     }
   },
-  "theme": "One Light",
+  "theme": "Catppuccin Mocha",
   "buffer_font_size": 13.0,
   "vim_mode": true,
   "languages": {
