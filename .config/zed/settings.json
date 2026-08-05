@@ -7,6 +7,7 @@
 // custom settings, run the `open default settings` command
 // from the command palette or from `Zed` application menu.
 {
+  "cli_default_open_behavior": "new_window",
   "project_panel": {
     "dock": "left"
   },
@@ -25,7 +26,7 @@
     "dock": "right"
   },
   "git_panel": {
-    "dock": "right",
+    "dock": "left",
     "tree_view": true,
     "sort_by_path": false
   },
@@ -38,7 +39,7 @@
     }
   },
   "agent": {
-    "sidebar_side": "right",
+    "sidebar_side": "left",
     "dock": "right",
     "default_model": {
       "provider": "zed.dev",
