@@ -23,7 +23,7 @@ config.color_scheme = "Catppuccin Frappe"
 config.font = wezterm.font("MesloLGL Nerd Font", { weight = "DemiBold", stretch = "Expanded" })
 config.font_size = 12
 
-config.window_background_opacity = 0.8
+config.window_background_opacity = 0.9
 --config.text_background_opacity = 0.9
 config.colors = {
 	background = "black",
