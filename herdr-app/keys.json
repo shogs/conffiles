@@ -109,6 +109,8 @@
     "ctrl-s w": "panel-rail.spaces",
     "ctrl-a f": "panel-rail.files",
     "ctrl-s f": "panel-rail.files",
+    "ctrl-a e": "panel-rail.files",
+    "ctrl-s e": "panel-rail.files",
     "ctrl-a g": "panel-rail.changes",
     "ctrl-s g": "panel-rail.changes"
   },
@@ -143,3 +145,4 @@
     "ctrl-s x": "my-changes.close"
   }
 }
+

@@ -5,7 +5,7 @@
 // panel-rail.spaces shows the Spaces sidebar and gives it the keyboard.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex } from "gpui-base";
-import { spaces, run, theme, shared, layout, nextCommand } from "herdr";
+import { spaces, run, theme, shared, setShared, layout, nextCommand } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -41,9 +41,15 @@ export default class PanelRail extends View {
   }
 
   // A hidden panel's mod takes no commands: show it, then ask it for the keyboard until it has started.
-  // The sidebar may be hidden (cmd-b, or closed from its own key): show it, then hand it the keyboard.
+  // The sidebar may be hidden (cmd-b) or folded to its rail (its own key, the brand row's button):
+  // show it at its full width, then hand it the keyboard.
   focusSpaces(cx) {
-    run("layout.show", { id: "sidebar" });
+    const sidebar = find(layout(), "sidebar");
+    if (sidebar?.hidden) run("layout.show", { id: "sidebar" });
+    if ((sidebar?.size?.px ?? Infinity) < 160) {
+      setShared("sidebar.collapsed", false);
+      run("layout.resize", { id: "sidebar", px: shared("sidebar.width") ?? 268 });
+    }
     for (const ms of [0, 120, 300]) cx.timer.after(ms, () => run("my-spaces.focus"));
   }
 

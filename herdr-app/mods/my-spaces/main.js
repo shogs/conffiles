@@ -87,7 +87,7 @@ export default class Spaces extends View {
       for (;;) {
         const command = String(await nextCommand()).replace(/^my-spaces\./, "");
         if (command === "focus") this.arrive(cx);
-        else if (command === "close") { if (this.browsing) this.back(); run("layout.hide", { id: "sidebar" }); cx.notify(); }
+        else if (command === "close") { if (this.browsing) this.back(); this.fold(); cx.notify(); }
         else if (this.browsing && Object.values(KEYS).includes(command)) { this.act(command, cx); cx.notify(); }
       }
     });
@@ -562,6 +562,14 @@ export default class Spaces extends View {
     if (!row) return;
     if (!row.space.active) run("space.select", { id: row.space.id });
     if (row.tab) run("tab.select", { id: row.tab.id });
+  }
+
+  // Down to the rail, as the brand row's sidebar button does: its width is kept for coming back.
+  fold() {
+    if (narrow()) return;
+    setShared("sidebar.width", find(layout(), "sidebar")?.size?.px);
+    setShared("sidebar.collapsed", true);
+    run("layout.resize", { id: "sidebar", px: window()?.platform === "macos" ? 76 : 44 });
   }
 
   // Taking the keyboard: remember where it came from, and start browsing.
