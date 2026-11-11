@@ -105,8 +105,8 @@
     "ctrl-s ctrl-right": "pane.go:right",
     "ctrl-s ctrl-up": "pane.go:up",
     "ctrl-s ctrl-down": "pane.go:down",
-    "ctrl-a w": "my-spaces.focus",
-    "ctrl-s w": "my-spaces.focus",
+    "ctrl-a w": "panel-rail.spaces",
+    "ctrl-s w": "panel-rail.spaces",
     "ctrl-a f": "panel-rail.files",
     "ctrl-s f": "panel-rail.files",
     "ctrl-a g": "panel-rail.changes",
@@ -123,6 +123,23 @@
     "cmd-left": "send:\u0001",
     "cmd-right": "send:\u0005",
     "cmd-backspace": "send:\u0015"
+  },
+  "mod:my-spaces": {
+    "ctrl-a w": "my-spaces.close",
+    "ctrl-a x": "my-spaces.close",
+    "ctrl-s w": "my-spaces.close",
+    "ctrl-s x": "my-spaces.close"
+  },
+  "mod:my-files": {
+    "ctrl-a f": "my-files.close",
+    "ctrl-a x": "my-files.close",
+    "ctrl-s f": "my-files.close",
+    "ctrl-s x": "my-files.close"
+  },
+  "mod:my-changes": {
+    "ctrl-a g": "my-changes.close",
+    "ctrl-a x": "my-changes.close",
+    "ctrl-s g": "my-changes.close",
+    "ctrl-s x": "my-changes.close"
   }
 }
-

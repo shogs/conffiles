@@ -59,6 +59,7 @@ export default class Files extends View {
       for (;;) {
         const command = String(await nextCommand()).replace(/^my-files\./, "");
         if (command === "focus") this.arrive(cx);
+        else if (command === "close") this.close();
         else if (this.handle.is_focused() && Object.values(KEYS).includes(command)) { this.act(command, cx); cx.notify(); }
       }
     });
@@ -75,6 +76,14 @@ export default class Files extends View {
   here() {
     if (this.context && this.handle?.is_focused()) return { cwd: this.context.cwd, on: this.context.on, key: this.context.key };
     return { ...location(), key: key() };
+  }
+
+  // Its open key or ctrl-a x while it has the keyboard (keys.json mod:my-files): hide the side panel,
+  // keyboard back to the focused pane.
+  close() {
+    const pane = focused()?.pane;
+    run("layout.hide", { id: "panel" });
+    if (pane) run("pane.focus", { pane });
   }
 
   arrive(cx) {

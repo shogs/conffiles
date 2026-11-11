@@ -87,6 +87,7 @@ export default class Spaces extends View {
       for (;;) {
         const command = String(await nextCommand()).replace(/^my-spaces\./, "");
         if (command === "focus") this.arrive(cx);
+        else if (command === "close") { if (this.browsing) this.back(); run("layout.hide", { id: "sidebar" }); cx.notify(); }
         else if (this.browsing && Object.values(KEYS).includes(command)) { this.act(command, cx); cx.notify(); }
       }
     });

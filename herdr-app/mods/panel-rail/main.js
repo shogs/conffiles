@@ -1,7 +1,8 @@
 // The side panel's buttons as a strip down the window's right edge: an icon and a
 // sideways label per panel (Files, Changes). Click to show that panel, again to hide it.
 // Like the tab bar it replaces, it remembers each space's panel and restores it on switching.
-// panel-rail.files and panel-rail.changes (keys) open that panel and give it the keyboard.
+// panel-rail.files and panel-rail.changes (keys) open that panel and give it the keyboard;
+// panel-rail.spaces shows the Spaces sidebar and gives it the keyboard.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex } from "gpui-base";
 import { spaces, run, theme, shared, layout, nextCommand } from "herdr";
@@ -29,6 +30,7 @@ export default class PanelRail extends View {
         const command = String(await nextCommand()).replace(/^panel-rail\./, "");
         if (command === "files") this.focusPanel("files", "my-files", cx);
         else if (command === "changes") this.focusPanel("changes", "my-changes", cx);
+        else if (command === "spaces") this.focusSpaces(cx);
       }
     });
   }
@@ -39,6 +41,12 @@ export default class PanelRail extends View {
   }
 
   // A hidden panel's mod takes no commands: show it, then ask it for the keyboard until it has started.
+  // The sidebar may be hidden (cmd-b, or closed from its own key): show it, then hand it the keyboard.
+  focusSpaces(cx) {
+    run("layout.show", { id: "sidebar" });
+    for (const ms of [0, 120, 300]) cx.timer.after(ms, () => run("my-spaces.focus"));
+  }
+
   focusPanel(id, mod, cx) {
     this.open(id);
     for (const ms of [0, 120, 300]) cx.timer.after(ms, () => run(`${mod}.focus`));
