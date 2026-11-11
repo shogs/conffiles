@@ -50,6 +50,19 @@
           ]
         },
         {
+          "id": "office",
+          "type": "block",
+          "size": {
+            "px": 90
+          },
+          "min": 60,
+          "max": 260,
+          "content": {
+            "mod": "my-office"
+          },
+          "hidden": true
+        },
+        {
           "id": "sidebar-footer",
           "type": "block",
           "content": {

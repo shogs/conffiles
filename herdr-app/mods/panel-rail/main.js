@@ -40,7 +40,6 @@ export default class PanelRail extends View {
     run("layout.show", { id: "panel" });
   }
 
-  // A hidden panel's mod takes no commands: show it, then ask it for the keyboard until it has started.
   // The sidebar may be hidden (cmd-b) or folded to its rail (its own key, the brand row's button):
   // show it at its full width, then hand it the keyboard.
   focusSpaces(cx) {
@@ -53,6 +52,7 @@ export default class PanelRail extends View {
     for (const ms of [0, 120, 300]) cx.timer.after(ms, () => run("my-spaces.focus"));
   }
 
+  // A hidden panel's mod takes no commands: show it, then ask it for the keyboard until it has started.
   focusPanel(id, mod, cx) {
     this.open(id);
     for (const ms of [0, 120, 300]) cx.timer.after(ms, () => run(`${mod}.focus`));

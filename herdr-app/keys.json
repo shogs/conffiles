@@ -143,6 +143,11 @@
     "ctrl-a x": "my-changes.close",
     "ctrl-s g": "my-changes.close",
     "ctrl-s x": "my-changes.close"
+  },
+  "layout:office": {
+    "ctrl-shift-i": "layout.toggle:office"
+  },
+  "layout:glass": {
+    "ctrl-shift-i": "layout.toggle:office"
   }
 }
-
