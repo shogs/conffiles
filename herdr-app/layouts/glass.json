@@ -32,7 +32,7 @@
                 "mod": "my-spaces"
               },
               "size": {
-                "weight": 1
+                "weight": 1.1238778829574585
               },
               "min": 90
             },
@@ -43,7 +43,7 @@
                 "mod": "my-agents"
               },
               "size": {
-                "weight": 1
+                "weight": 0.8761221170425415
               },
               "min": 90
             }
@@ -128,16 +128,16 @@
               "type": "column",
               "children": [
                 {
-                  "id": "pinned-card-t48",
+                  "id": "pinned-card-t2s",
                   "type": "column",
                   "children": [
                     {
-                      "id": "pinned-head-t48",
+                      "id": "pinned-head-t2s",
                       "type": "block",
                       "content": {
                         "mod": "my-pinned-panes",
                         "props": {
-                          "terminal": "t48"
+                          "terminal": "t2s"
                         }
                       },
                       "size": {
@@ -145,16 +145,16 @@
                       }
                     },
                     {
-                      "id": "pinned-mid-t48",
+                      "id": "pinned-mid-t2s",
                       "type": "row",
                       "children": [
                         {
-                          "id": "pinned-left-t48",
+                          "id": "pinned-left-t2s",
                           "type": "block",
                           "content": {
                             "mod": "my-pinned-frame",
                             "props": {
-                              "terminal": "t48",
+                              "terminal": "t2s",
                               "edge": "side"
                             }
                           },
@@ -163,19 +163,19 @@
                           }
                         },
                         {
-                          "id": "pinned-term-t48",
+                          "id": "pinned-term-t2s",
                           "type": "block",
                           "content": {
-                            "terminal": "t48"
+                            "terminal": "t2s"
                           }
                         },
                         {
-                          "id": "pinned-right-t48",
+                          "id": "pinned-right-t2s",
                           "type": "block",
                           "content": {
                             "mod": "my-pinned-frame",
                             "props": {
-                              "terminal": "t48",
+                              "terminal": "t2s",
                               "edge": "side"
                             }
                           },
@@ -187,89 +187,12 @@
                       "resizable": false
                     },
                     {
-                      "id": "pinned-foot-t48",
+                      "id": "pinned-foot-t2s",
                       "type": "block",
                       "content": {
                         "mod": "my-pinned-frame",
                         "props": {
-                          "terminal": "t48",
-                          "edge": "bottom"
-                        }
-                      },
-                      "size": {
-                        "px": 10
-                      }
-                    }
-                  ],
-                  "background": "#00000000",
-                  "resizable": false
-                },
-                {
-                  "id": "pinned-card-t3t",
-                  "type": "column",
-                  "children": [
-                    {
-                      "id": "pinned-head-t3t",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-panes",
-                        "props": {
-                          "terminal": "t3t"
-                        }
-                      },
-                      "size": {
-                        "px": 30
-                      }
-                    },
-                    {
-                      "id": "pinned-mid-t3t",
-                      "type": "row",
-                      "children": [
-                        {
-                          "id": "pinned-left-t3t",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t3t",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        },
-                        {
-                          "id": "pinned-term-t3t",
-                          "type": "block",
-                          "content": {
-                            "terminal": "t3t"
-                          }
-                        },
-                        {
-                          "id": "pinned-right-t3t",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t3t",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        }
-                      ],
-                      "resizable": false
-                    },
-                    {
-                      "id": "pinned-foot-t3t",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-frame",
-                        "props": {
-                          "terminal": "t3t",
+                          "terminal": "t2s",
                           "edge": "bottom"
                         }
                       },
@@ -288,12 +211,12 @@
           ],
           "active": "pinned-sp-sp5ccffbd9de4019928ffb677e25de4468",
           "size": {
-            "weight": 2
+            "weight": 1
           }
         }
       ],
       "size": {
-        "px": 624
+        "px": 487
       },
       "min": 240,
       "max": 100000,

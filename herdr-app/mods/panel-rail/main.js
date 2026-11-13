@@ -6,7 +6,7 @@
 // It also shows each space's pinned view (mods/my-pinned-panes, pins.js) on switching, and
 // panel-rail.pinned (keys) opens or closes it for the shown space; panel-rail.pin pins
 // or unpins the focused pane, panel-rail.pin-global pins the focused pinned pane across spaces
-// (or back), panel-rail.pinned-max maximises the view; zoom, split-right,
+// (or back), panel-rail.pinned-max maximises the view (pinned-max-here: only from a pinned pane); zoom, split-right,
 // split-down and close are the pane keys (see paneKey); go-left/right/up/down are pane.go (see go);
 // last-pane goes back to the pane (tab or pinned) used before.
 import { View, div, svg, image } from "gpui-kit";
@@ -45,6 +45,7 @@ export default class PanelRail extends View {
         else if (command === "pinned") togglePinned();
         else if (command === "pin") this.pinFocused(cx);
         else if (command === "pinned-max") toggleMax();
+        else if (command === "pinned-max-here") { const f = focused(); if (!f?.pane && f?.terminal && visible().some(x => x.terminal === f.terminal)) toggleMax(); }
         else if (/^go-(left|right|up|down)$/.test(command)) this.go(command.slice(3), cx);
         else if (command === "last-pane") this.lastPlace();
         else if (command === "office-max") this.toggleOfficeMax();

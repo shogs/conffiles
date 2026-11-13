@@ -191,6 +191,7 @@
     "ctrl-a ;": "panel-rail.last-pane",
     "ctrl-s ;": "panel-rail.last-pane",
     "ctrl-a P": "panel-rail.pin",
-    "ctrl-s P": "panel-rail.pin"
+    "ctrl-s P": "panel-rail.pin",
+    "ctrl-cmd-shift-enter": "panel-rail.pinned-max-here"
   }
 }
