@@ -299,6 +299,7 @@ export default class Spaces extends View {
     const nested = (r) => r.g?.linked && mains.has(r.g.repo);
     const out = [];
     const placed = new Set(); // repos whose worktrees are listed (under the first of its spaces)
+    const group = { ...(shared("space.group") ?? {}) };
     for (const r of list) {
       if (nested(r)) continue;
       out.push({ ...r, tree: null });
@@ -306,7 +307,13 @@ export default class Spaces extends View {
       placed.add(r.g.repo);
       const kids = list.filter((k) => nested(k) && k.g.repo === r.g.repo);
       kids.forEach((k, n) => out.push({ ...k, tree: n === kids.length - 1 ? "└─" : "├─" }));
+      for (const k of kids) group[k.w.id] = r.w.id;
     }
+    // Each worktree space belongs to the space it's listed under, shared as "space.group" (the
+    // pinned view is per group). Kept while git is unsure; dropped when either space is gone.
+    const ids = new Set(sp.map((w) => w.id));
+    for (const [k, v] of Object.entries(group)) if (!ids.has(k) || !ids.has(v)) delete group[k];
+    if (JSON.stringify(group) !== JSON.stringify(shared("space.group") ?? {})) setShared("space.group", group);
     // Simulate the batch so later indexes include earlier moves. An attempted
     // write can lose a sync conflict: allow the echo to settle before retrying.
     const order = sp.map(w => w.id);

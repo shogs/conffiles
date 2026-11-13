@@ -12,7 +12,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex } from "gpui-base";
 import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes } from "herdr";
-import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf } from "./pins.js";
+import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf } from "./pins.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -193,7 +193,9 @@ export default class PanelRail extends View {
     else if (f?.terminal && f.terminal !== shared("pinned.last") && visible().some(x => x.terminal === f.terminal)) setShared("pinned.last", f.terminal);
     this.syncPanel(space, panel, body, enabled);
     reveal();
-    if (space && space.id !== this.pinnedSpace) { this.pinnedSpace = space.id; applyView(space.id); }
+    regroup();
+    // A worktree space shares its main checkout's pinned view: the view changes with the group.
+    if (space && groupOf(space.id) !== this.pinnedSpace) { this.pinnedSpace = groupOf(space.id); applyView(space.id); }
     const button = (p) => {
       const on = panel && !panel.hidden && body?.active === p.id;
       return v_flex().id(`rail-${p.id}`).w(30).py(10).gap(8).flex_none().items_center().rounded(7)

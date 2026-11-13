@@ -2,6 +2,8 @@
 // full height) of terminals moved out of their tabs, plus shells started in it (split). Each space
 // has its own pins, and its own open / zoomed pane / maximised view; it starts closed.
 // Global pins (pinned across spaces, key "*") show in every space, above that space's own.
+// A worktree space shares its main checkout's (shared "space.group", from my-spaces): pins and
+// view state are kept per group, the space a worktree is listed under in the sidebar.
 //
 // The column is a title row, "pinned-global" (the global pins' cards) and a stack,
 // "pinned-body", holding "pinned-empty" and one column of cards per space with pins. Pin, unpin, split and close rewrite that
@@ -35,7 +37,11 @@ const cardId = (terminal) => `pinned-card-${slug(terminal)}`;
 const map = (key) => shared(key) ?? {};
 const put = (key, space, value) => setShared(key, { ...map(key), [space]: value });
 
-export const activeSpace = () => spaces().find((s) => s.active)?.id;
+// The space shown, and the group it belongs to (its own id, or for a worktree space its
+// main checkout's): pins and view state are keyed by group.
+export const shownSpace = () => spaces().find((s) => s.active)?.id;
+export const groupOf = (space) => (shared("space.group") ?? {})[space] ?? space;
+export const activeSpace = () => groupOf(shownSpace());
 export function all() {
   const v = shared(KEY);
   return v && !Array.isArray(v) ? v : {};
@@ -133,6 +139,7 @@ function sync() {
 
 // Show the shown space's view by showing, hiding, selecting and resizing (no rewrite).
 export function applyView(space = activeSpace()) {
+  space = groupOf(space);
   const root = layout(), column = find(root, "pinned"), body = find(root, "pinned-body"), work = find(root, "work");
   if (!column || !space) return;
   const v = view(space), w = width(column);
@@ -187,7 +194,7 @@ export function pin(pane, cx) {
   const name = ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
   run("terminal.park", { terminal: p.terminal });
   put(OPEN, space, true);
-  save({ ...all(), [space]: [...list(space), { terminal: p.terminal, name, cwd: p.cwd, program: p.program, space, tab: p.tab }] });
+  save({ ...all(), [space]: [...list(space), { terminal: p.terminal, name, cwd: p.cwd, program: p.program, space: shownSpace(), tab: p.tab }] });
   keep(p.terminal, cx);
 }
 
@@ -265,7 +272,7 @@ export function split(terminal, cwd, cx) {
     if (!address) return;
     const made = machine && !address.includes("/") ? `${machine}/${address}` : address;
     const key = keyOf(terminal) ?? space, pins = [...(all()[key] ?? [])];
-    pins.splice(pins.findIndex((x) => x.terminal === terminal) + 1, 0, { terminal: made, name: "shell", cwd, own: true, space });
+    pins.splice(pins.findIndex((x) => x.terminal === terminal) + 1, 0, { terminal: made, name: "shell", cwd, own: true, space: shownSpace() });
     put(ZOOM, space, null);
     save({ ...all(), [key]: pins });
     run("pane.focus", { terminal: made });
@@ -284,8 +291,9 @@ export function pollAgents(cx) {
     const next = [];
     for (const [key, pins] of Object.entries(all())) {
       for (const p of pins) {
-        // A global pin's agent is listed under the space it came from.
-        const space = key === GLOBAL ? (p.space ?? activeSpace()) : key;
+        // A pinned agent is listed under the space it came from (a group's pins can come from
+        // its worktree spaces; a global pin's from anywhere).
+        const space = p.space ?? (key === GLOBAL ? shownSpace() : key);
         const t = await info(p.terminal);
         if (!t || t.state !== "live" || !t.status?.state) continue;
         const looking = focused()?.terminal === p.terminal;
@@ -320,12 +328,34 @@ export function toggleGlobal(terminal) {
   const key = keyOf(terminal);
   if (!key) return;
   const pin = all()[key].find((x) => x.terminal === terminal);
-  const home = spaces().some((s) => s.id === pin.space) ? pin.space : activeSpace();
+  const home = spaces().some((s) => s.id === pin.space) ? groupOf(pin.space) : activeSpace();
   const to = key === GLOBAL ? home : GLOBAL;
   const next = { ...all(), [key]: all()[key].filter((x) => x.terminal !== terminal) };
   if (!next[key].length) delete next[key];
   next[to] = [...(next[to] ?? []), pin];
   save(next);
+}
+
+// Pins and view state kept under a worktree space's own id (from before it was known to be
+// one) move to its group. panel-rail runs this on every render; it writes only when needed.
+export function regroup() {
+  const pins = all(), moved = Object.keys(pins).filter((k) => k !== GLOBAL && groupOf(k) !== k);
+  if (moved.length) {
+    const next = { ...pins };
+    for (const k of moved) {
+      const to = groupOf(k);
+      next[to] = [...(next[to] ?? []), ...next[k].filter((x) => !(next[to] ?? []).some((y) => y.terminal === x.terminal))];
+      delete next[k];
+    }
+    save(next);
+  }
+  for (const key of [OPEN, MAX, ZOOM]) {
+    const m = map(key), stale = Object.keys(m).filter((k) => groupOf(k) !== k);
+    if (!stale.length) continue;
+    const next = { ...m };
+    for (const k of stale) { next[groupOf(k)] ??= next[k]; delete next[k]; }
+    setShared(key, next);
+  }
 }
 
 // Close a pinned pane: it ends, as closing a tab's pane would.
