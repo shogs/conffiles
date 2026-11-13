@@ -72,8 +72,8 @@ export default class PinnedPanes extends View {
       const max = isMax();
       return h_flex().id("pinned-title").track_focus(this.handle).size_full().px(10).gap(8).items_center().text_size(12)
         .child(svg("mods/my-workspace-chrome/pin.svg").size(13).text_color(t.muted))
-        .child(div().flex_1().font_semibold().text_color(t.foreground).child("Pinned"))
-        .child(div().text_color(t.dim).child(String(visible().length || "")))
+        .child(div().font_semibold().text_color(t.foreground).child("Pinned"))
+        .child(div().flex_1().text_color(t.dim).child(String(visible().length || "")))
         .child(this.button(t, "pinned-max", `mods/my-pane/${max ? "unzoom" : "zoom"}.svg`, max ? "Restore" : "Maximise", () => toggleMax()))
         .child(this.button(t, "pinned-hide", "mods/my-workspace-chrome/x.svg", "Hide (ctrl-a i)", () => toggle()));
     }

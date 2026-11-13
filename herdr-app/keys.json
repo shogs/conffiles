@@ -114,7 +114,9 @@
     "ctrl-a g": "panel-rail.changes",
     "ctrl-s g": "panel-rail.changes",
     "ctrl-a i": "panel-rail.pinned",
-    "ctrl-s i": "panel-rail.pinned"
+    "ctrl-s i": "panel-rail.pinned",
+    "ctrl-a ,": "tab.rename",
+    "ctrl-s ,": "tab.rename"
   },
   "terminal": {
     "cmd-f": "terminal.search",
@@ -187,6 +189,8 @@
     "ctrl-s ctrl-up": "panel-rail.go-up",
     "ctrl-s ctrl-down": "panel-rail.go-down",
     "ctrl-a ;": "panel-rail.last-pane",
-    "ctrl-s ;": "panel-rail.last-pane"
+    "ctrl-s ;": "panel-rail.last-pane",
+    "ctrl-a P": "panel-rail.pin",
+    "ctrl-s P": "panel-rail.pin"
   }
 }

@@ -6,7 +6,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { panes, props, run, theme, home, layout } from "herdr";
+import { panes, props, run, theme, home, layout, openOverlay } from "herdr";
 import { pin, unpin, list } from "./pins.js";
 
 // Match the first visible tab frame, including the active child of a stack.
@@ -55,7 +55,7 @@ export default class Pane extends View {
         cx.stop_propagation();
         action(cx);
       })
-      .child(svg(`mods/my-pane/${icon}.svg`).size(14));
+      .child(svg(icon.includes("/") ? icon : `mods/my-pane/${icon}.svg`).size(14));
   }
 
   render(cx) {
@@ -90,6 +90,7 @@ export default class Pane extends View {
       .when(Boolean(p.terminal) && (pinned || this.hovered), el => el.child(this.button(t, `ph-p-${pane}`, "pin", (cx) => pinned ? unpin(p.terminal) : pin(pane, cx))
         .when(pinned, b => b.text_color(t.accent))))
       .when(this.hovered, el => el
+        .when(Boolean(p.terminal), el => el.child(this.button(t, `ph-m-${pane}`, "mods/move-pane/move.svg", () => openOverlay({ mod: "move-pane", props: { pane, terminal: p.terminal } }))))
         .child(this.button(t, `ph-r-${pane}`, "split-right", "pane.split", { direction: "right", pane }))
         .child(this.button(t, `ph-d-${pane}`, "split-down", "pane.split", { direction: "down", pane }))
         .child(this.button(t, `ph-z-${pane}`, p.zoomed ? "unzoom" : "zoom", "pane.zoom", { pane }))
