@@ -6,11 +6,12 @@
 // Three finishes in five minutes and pizza arrives. A cat lives here. Lights go down after
 // dark, the windows show the real weather, and the office decorates for the season.
 // Hover anyone to see what they're working on; click them to go to their terminal.
-import { View } from "gpui-kit";
+import { View, div as plainDiv, svg as plainSvg } from "gpui-kit";
 import { div, svg, setZoom } from "./zoom.js";
-import { agents, terminals, spaces, panes, shared, run, setAgentOrder, settings } from "herdr";
+import { agents, terminals, spaces, panes, shared, run, setAgentOrder, settings, props, layout } from "herdr";
 import * as A from "./art.js";
 import * as D from "./decor.js";
+import { withPinnedAgents } from "./pins.js";
 
 // Real weather in the windows. Off by default: it sends your IP address to ipapi.co for a
 // rough location, then asks Open-Meteo for the current conditions there.
@@ -76,6 +77,22 @@ const mugOf = (a) => {
 const descendants = (all, addr) =>
   all.filter((k) => k.parent === addr && k.state === "live").flatMap((k) => [k, ...descendants(all, k.address)]);
 
+// The big office: its own strip above the panes ("office-max" in layouts/glass.json), opened
+// from the sidebar office's arrow and closed with its x. The sidebar office stays as it is.
+// panel-rail.office-max (cmd-shift-i) toggles it too.
+function find(node, id) {
+  if (node?.id === id) return node;
+  for (const child of node?.children ?? []) {
+    const found = find(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+function toggleOfficeMax() {
+  const max = find(layout(), "office-max");
+  if (!max) return;
+  run(max.hidden ? "layout.show" : "layout.hide", { id: "office-max" });
+}
 function loadNumber(key) {
   try { return Number(localStorage.getItem(key)) || null; } catch { return null; }
 }
@@ -242,7 +259,8 @@ export default class Office extends View {
     const app = settings().zoom ?? 1;
     const real = { width: this.size.width / app, height: this.size.height / app };
     if (real.width < 160) return div().id("office").size_full().on_size_change((size, cx) => { this.size = size; cx.notify(); });
-    const list = agents();
+    // Pinned panes (mods/my-pinned-panes) are out of their tabs, so agents() leaves them out.
+    const list = withPinnedAgents(agents());
     // Agents on other machines are working from home: they're on the video call, not in a chair.
     const here = list.filter((a) => !remote(a.address));
     const all = terminals();
@@ -339,7 +357,21 @@ export default class Office extends View {
         ...(alarmed.length ? D.alarm(W, H, g.deskPos(this.desk[alarmed[0].address]).x + 27 * P) : []),
         ...(hovered && this.at[hovered.address] ? [this.thought(hovered, this.at[hovered.address], g)] : []),
         ...(list.length ? [] : [this.sign(W, g)]),
+        this.maxButton(),
       ]);
+  }
+
+  // Top right, drawn at the app's size (not the room's zoom): an arrow opens the big office, an x closes it.
+  maxButton() {
+    const max = Boolean(props()?.max);
+    if (!max && !find(layout(), "office-max")) return plainDiv();
+    return plainDiv().id("office-max-toggle").absolute().top(6).right(6).w(22).h(22).rounded(5)
+      .flex().items_center().justify_center().cursor_pointer()
+      .bg("#0000002e").hover((s) => s.bg("#00000059"))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click(() => toggleOfficeMax())
+      .text_color("#ffffff")
+      .child(plainSvg(max ? "mods/my-office/close-max.svg" : "mods/my-office/open-max.svg").size(14));
   }
 
   room(W, H, g, s, list, all, now, when) {
@@ -418,7 +450,7 @@ export default class Office extends View {
     const overtime = st === "working" && tab?.working_since && Date.now() - tab.working_since > MUGS_AFTER;
     const plate = a ? this.plate(a) : null;
     return div().id(`desk-${i}`).absolute().left(pos.x).top(pos.y - A.BOX * P).w(A.SLOT * P).h(A.BOX * P + 28)
-      .when(Boolean(a), (el) => el.cursor_pointer().on_click(() => run("pane.focus", { pane: a.pane })))
+      .when(Boolean(a), (el) => el.cursor_pointer().on_click(() => run("pane.focus", a.pane ? { pane: a.pane } : { terminal: a.address })))
       .children([
         ...A.rects(A.DESK.chair, pal), ...A.rects(A.DESK.desk, pal),
         ...(overtime ? A.rects(A.MUG_PILE, pal) : []),
@@ -625,7 +657,7 @@ export default class Office extends View {
     return div().id(`person-${a.address}`).absolute().left(at.x).top(at.y - A.BOX * P).w(A.PERSON * P).h(A.BOX * P)
       .transition("left", { duration: at.dur, easing: "ease-in-out" })
       .transition("top", { duration: at.dur, easing: "ease-in-out" })
-      .cursor_pointer().on_click(() => run("pane.focus", { pane: a.pane }))
+      .cursor_pointer().on_click(() => run("pane.focus", a.pane ? { pane: a.pane } : { terminal: a.address }))
       .on_hover((h, cx) => {
         if (h) this.hovered = a.address;
         else if (this.hovered === a.address) this.hovered = null;

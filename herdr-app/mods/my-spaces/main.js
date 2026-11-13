@@ -590,11 +590,14 @@ export default class Spaces extends View {
   }
 
   // Show the cursor's row; the keyboard stays here. Showing another space hands the keyboard to
-  // its terminal a moment later, so for a while after, losing it means taking it back.
+  // its terminal a moment later (a few ms to ~70), so for a while after, losing it means taking
+  // it back. Any key the terminal gets meanwhile is typed into it (j, k, even Enter), so take it
+  // back at once and often: the gap is then a few ms, shorter than any key repeat.
   preview(cx) {
     this.open(this.nav.find((r) => r.key === this.cursor));
     this.previewing = Date.now() + 1500;
-    for (const ms of [40, 120, 300, 700]) cx.timer.after(ms, () => this.keep());
+    this.keep();
+    for (const ms of [0, 1, 2, 4, 6, 8, 10, 13, 16, 20, 25, 30, 40, 50, 65, 80, 100, 120, 160, 200, 300, 450, 700, 1000]) cx.timer.after(ms, () => this.keep());
   }
 
   keep() {
@@ -634,13 +637,19 @@ export default class Spaces extends View {
     localStorage.setItem("spaces.tabsFolded", JSON.stringify([...this.tabsFolded]));
   }
 
+  // The key stops here; what it does runs once its press is fully handled. Showing a tab of the
+  // shown space hands its terminal the keyboard at once, and acting during the press let the
+  // rest of that press (Enter: a new line, even an answer to an agent's question) reach it.
   key(e, cx) {
     const action = KEYS[e.keystroke] ?? KEYS[e.key];
     this.debug(e, action);
     if (!action) return;
-    this.act(action, cx);
     cx.stop_propagation();
-    cx.notify();
+    cx.spawn(async (cx) => {
+      await cx.sleep(0);
+      this.act(action, cx);
+      cx.notify();
+    });
   }
 
   // What a key does, by name (also my-spaces.<name> from keys.json or `herdr-app do`).

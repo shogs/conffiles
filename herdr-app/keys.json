@@ -112,7 +112,9 @@
     "ctrl-a e": "panel-rail.files",
     "ctrl-s e": "panel-rail.files",
     "ctrl-a g": "panel-rail.changes",
-    "ctrl-s g": "panel-rail.changes"
+    "ctrl-s g": "panel-rail.changes",
+    "ctrl-a i": "panel-rail.pinned",
+    "ctrl-s i": "panel-rail.pinned"
   },
   "terminal": {
     "cmd-f": "terminal.search",
@@ -148,6 +150,43 @@
     "ctrl-shift-i": "layout.toggle:office"
   },
   "layout:glass": {
-    "ctrl-shift-i": "layout.toggle:office"
+    "ctrl-shift-i": "layout.toggle:office",
+    "cmd-shift-i": "panel-rail.office-max",
+    "cmd-d": "panel-rail.split-right",
+    "cmd-shift-d": "panel-rail.split-down",
+    "cmd-shift-w": "panel-rail.close",
+    "cmd-shift-enter": "panel-rail.zoom",
+    "ctrl-a |": "panel-rail.split-right",
+    "ctrl-a \\": "panel-rail.split-down",
+    "ctrl-a x": "panel-rail.close",
+    "ctrl-a z": "panel-rail.zoom",
+    "ctrl-s |": "panel-rail.split-right",
+    "ctrl-s \\": "panel-rail.split-down",
+    "ctrl-s x": "panel-rail.close",
+    "ctrl-s z": "panel-rail.zoom",
+    "cmd-alt-left": "panel-rail.go-left",
+    "cmd-alt-right": "panel-rail.go-right",
+    "cmd-alt-up": "panel-rail.go-up",
+    "cmd-alt-down": "panel-rail.go-down",
+    "alt-shift-left": "panel-rail.go-left",
+    "alt-shift-right": "panel-rail.go-right",
+    "ctrl-a left": "panel-rail.go-left",
+    "ctrl-a right": "panel-rail.go-right",
+    "ctrl-a up": "panel-rail.go-up",
+    "ctrl-a down": "panel-rail.go-down",
+    "ctrl-s left": "panel-rail.go-left",
+    "ctrl-s right": "panel-rail.go-right",
+    "ctrl-s up": "panel-rail.go-up",
+    "ctrl-s down": "panel-rail.go-down",
+    "ctrl-a ctrl-left": "panel-rail.go-left",
+    "ctrl-a ctrl-right": "panel-rail.go-right",
+    "ctrl-a ctrl-up": "panel-rail.go-up",
+    "ctrl-a ctrl-down": "panel-rail.go-down",
+    "ctrl-s ctrl-left": "panel-rail.go-left",
+    "ctrl-s ctrl-right": "panel-rail.go-right",
+    "ctrl-s ctrl-up": "panel-rail.go-up",
+    "ctrl-s ctrl-down": "panel-rail.go-down",
+    "ctrl-a ;": "panel-rail.last-pane",
+    "ctrl-s ;": "panel-rail.last-pane"
   }
 }
