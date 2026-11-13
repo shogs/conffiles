@@ -192,6 +192,9 @@ export function pin(pane, cx) {
   const space = activeSpace();
   if (!p?.terminal || !space || keyOf(p.terminal)) return;
   const name = ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
+  // Parking a tab's last pane would close the tab (and a space with no other tab): a fresh
+  // shell takes its place first.
+  if (panes().filter((x) => x.tab === p.tab).length === 1) run("pane.split", { pane, direction: "right" });
   run("terminal.park", { terminal: p.terminal });
   put(OPEN, space, true);
   save({ ...all(), [space]: [...list(space), { terminal: p.terminal, name, cwd: p.cwd, program: p.program, space: shownSpace(), tab: p.tab }] });
