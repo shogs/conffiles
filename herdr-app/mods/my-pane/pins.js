@@ -5,7 +5,7 @@
 // A worktree space shares its main checkout's (shared "space.group", from my-spaces): pins and
 // view state are kept per group, the space a worktree is listed under in the sidebar.
 //
-// The column is a title row, "pinned-global" (the global pins' cards) and a stack,
+// The column is a title row, "pinned-orphans" (pins whose space closed: see orphans), "pinned-global" (the global pins' cards) and a stack,
 // "pinned-body", holding "pinned-empty" and one column of cards per space with pins. Pin, unpin, split and close rewrite that
 // structure (layout.set); open, zoom and maximise and switching spaces only show, hide,
 // select and resize nodes (applyView), which panel-rail runs when the space changes.
@@ -17,7 +17,7 @@
 //
 // One file, hard-linked into my-pinned-panes, my-pane, my-workspace-chrome, my-menu and panel-rail
 // (mods can't import across folders): save it in place, don't replace it.
-import { run, exec, shared, setShared, layout, panes, spaces, focused, notify } from "herdr";
+import { run, exec, shared, setShared, layout, panes, spaces, focused, notify, machines } from "herdr";
 
 const KEY = "pinned.panes", OPEN = "pinned.open", MAX = "pinned.max", ZOOM = "pinned.zoom", WIDTH = "pinned.width", AGENTS = "pinned.agents", REVEAL = "pinned.reveal";
 
@@ -52,6 +52,41 @@ export const globals = () => all()[GLOBAL] ?? [];
 // What a space's view shows: the global pins, then its own.
 export const visible = (space = activeSpace()) => [...globals(), ...list(space)];
 export const isGlobal = (terminal) => globals().some((x) => x.terminal === terminal);
+
+// Pins whose space closed (exit in its last pane, a close from outside glass): still running,
+// with no view to show in. Listed in every space's pinned view, to pin here, open as a tab or kill.
+// A space on a machine whose layout isn't ready yet isn't gone.
+function gone(key) {
+  if (key === GLOBAL || spaces().some((s) => s.id === key)) return false;
+  const machine = key.includes("/") ? key.split("/")[0] : null;
+  return machines().find((m) => m.name === machine)?.layout === "ready";
+}
+export const orphans = () => Object.entries(all()).filter(([k]) => gone(k)).flatMap(([, pins]) => pins);
+// The orphans block's height: a title row and one row each.
+export const orphansHeight = (n) => 34 + 28 * n;
+
+// An orphan into the shown space's pins; unpinned later, it gets a new tab there.
+export function adopt(terminal) {
+  const key = keyOf(terminal), pin = all()[key]?.find((x) => x.terminal === terminal);
+  if (!pin) return;
+  const next = { ...all(), [key]: all()[key].filter((x) => x.terminal !== terminal) };
+  if (!next[key].length) delete next[key];
+  const space = activeSpace();
+  next[space] = [...(next[space] ?? []), { ...pin, space: shownSpace(), tab: null, own: false }];
+  save(next);
+}
+
+// An orphan out of the pins, into a new tab of the shown space.
+export function openAsTab(terminal) {
+  unpin(terminal, false);
+  run("terminal.keep", { terminal });
+}
+
+// Show the pinned view (when a space with pins goes, so its orphans are seen).
+export function show(space = activeSpace()) {
+  put(OPEN, space, true);
+  applyView(space);
+}
 // The key ("*" or a space) a pinned terminal is under.
 const keyOf = (terminal) => Object.keys(all()).find((k) => all()[k].some((x) => x.terminal === terminal));
 export const isOpen = (space = activeSpace()) => Boolean(map(OPEN)[space]);
@@ -75,6 +110,7 @@ function view(space) {
     // The empty hint shows only when there's nothing pinned at all.
     own: ownCount > 0 || (!g.length && !own.length),
     gWeight: Math.max(1, gCount), ownWeight: Math.max(1, ownCount),
+    orphans: orphans().length,
     open, max,
   };
 }
@@ -109,13 +145,14 @@ function width(column) {
 }
 
 // Rewrite the column's structure from the pins, with the shown space's view baked in.
-function sync() {
+export function sync() {
   const root = JSON.parse(JSON.stringify(layout()));
   const column = find(root, "pinned"), work = find(root, "work");
   if (!column) return;
   const space = activeSpace(), v = view(space), w = width(column);
   column.children = [
     { id: "pinned-title", type: "block", size: { px: 30 }, content: { mod: "my-pinned-panes", props: { title: true } } },
+    { id: "pinned-orphans", type: "block", hidden: !v.orphans, size: { px: orphansHeight(v.orphans) }, content: { mod: "my-pinned-panes", props: { orphans: true } } },
     {
       id: "pinned-global", type: "column", gap: 8, resizable: false, hidden: !v.global, size: { weight: v.gWeight },
       children: globals().map((p) => card(p, v.hidden.has(cardId(p.terminal)))),
@@ -124,7 +161,7 @@ function sync() {
       id: "pinned-body", type: "stack", active: v.body, hidden: !v.own, size: { weight: v.ownWeight },
       children: [
         { id: "pinned-empty", type: "block", content: { mod: "my-pinned-panes", props: {} } },
-        ...Object.entries(all()).filter(([s, pins]) => s !== GLOBAL && pins.length).map(([s, pins]) => ({
+        ...Object.entries(all()).filter(([s, pins]) => s !== GLOBAL && !gone(s) && pins.length).map(([s, pins]) => ({
           id: bodyId(s), type: "column", gap: 8, resizable: false,
           children: pins.map((p) => card(p, s === space && v.hidden.has(cardId(p.terminal)))),
         })),
@@ -255,14 +292,6 @@ export function reveal() {
   run("pane.focus", { pane: pane.pane });
 }
 
-// Is each pin's terminal still running? Moved ones aren't in terminals(), so ask the core.
-export async function prune() {
-  for (const x of Object.values(all()).flat()) {
-    const t = await info(x.terminal);
-    if (t && t.state !== "live") unpin(x.terminal, false);
-  }
-}
-
 // A shell of its own below the given pane, on that pane's machine, in its folder.
 // It lives only here: no tab shows it, and closing it ends it.
 export function split(terminal, cwd, cx) {
@@ -282,9 +311,10 @@ export function split(terminal, cwd, cx) {
   });
 }
 
-// Pinned panes are out of their tabs, so agents() leaves them out. One poller (panel-rail,
-// every 2 s) asks the core for their status and keeps "pinned.agents" for the agent lists
-// (my-agents, my-office) to add. The core knows working, blocked and idle; "done" (finished
+// Pinned panes are out of their tabs, so agents() leaves them out, and Herdr doesn't close their
+// cards when they end. One poller (panel-rail, every 2 s) asks the core about each: one that ended
+// (ctrl-d, exit, an agent quitting) is unpinned, its card gone; for the rest it keeps
+// "pinned.agents" for the agent lists (my-agents, my-office) to add. No answer (hc failed) leaves it. The core knows working, blocked and idle; "done" (finished
 // while you weren't looking) is worked out here, as Herdr does: until its pane has the keyboard.
 export const pinnedAgents = () => shared(AGENTS) ?? [];
 
@@ -298,7 +328,8 @@ export function pollAgents(cx) {
         // its worktree spaces; a global pin's from anywhere).
         const space = p.space ?? (key === GLOBAL ? shownSpace() : key);
         const t = await info(p.terminal);
-        if (!t || t.state !== "live" || !t.status?.state) continue;
+        if (t && t.state !== "live") { unpin(p.terminal, false); continue; }
+        if (!t || !t.status?.state) continue;
         const looking = focused()?.terminal === p.terminal;
         const was = before.get(p.terminal)?.status;
         let status = t.status.state;

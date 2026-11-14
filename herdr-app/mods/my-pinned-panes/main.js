@@ -3,6 +3,8 @@
 //   props {terminal}      a pinned pane's header, like my-pane's: icon, name, folder,
 //                         status; pin across spaces (the sideways pin), pin (unpin); on
 //                         hover split down, zoom, close
+//   props {orphans: true} pins whose space closed (pins.js orphans), in every space: pin here,
+//                         open as a tab, or kill
 //   props {}              the empty view's hint
 // (The frame's side and bottom strips are my-pinned-frame.)
 //
@@ -13,7 +15,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { props, run, theme, home, terminals, agents, focused, nextCommand, shared } from "herdr";
-import { all, visible, unpin, close, split, toggle, toggleMax, toggleZoom, zoomOf, isMax, prune, isGlobal, toggleGlobal } from "./pins.js";
+import { all, visible, unpin, close, split, toggle, toggleMax, toggleZoom, zoomOf, isMax, isGlobal, toggleGlobal, orphans, adopt, openAsTab } from "./pins.js";
 
 function folder(cwd) {
   if (!cwd) return "";
@@ -37,8 +39,6 @@ export default class PinnedPanes extends View {
         this.command(command, cx);
       }
     });
-    // One copy drops pinned terminals that ended.
-    if (props?.title) cx.timer.every(5000, (cx) => cx.spawn(async () => prune()));
   }
 
   command(command, cx) {
@@ -76,6 +76,25 @@ export default class PinnedPanes extends View {
         .child(div().flex_1().text_color(t.dim).child(String(visible().length || "")))
         .child(this.button(t, "pinned-max", `mods/my-pane/${max ? "unzoom" : "zoom"}.svg`, max ? "Restore" : "Maximise", () => toggleMax()))
         .child(this.button(t, "pinned-hide", "mods/my-workspace-chrome/x.svg", "Hide (ctrl-a i)", () => toggle()));
+    }
+    if (p.orphans) {
+      const lost = orphans();
+      return v_flex().id("pinned-orphans").size_full().px(4).text_size(12)
+        .child(h_flex().h(30).px(6).gap(8).items_center().flex_none()
+          .child(svg("mods/my-workspace-chrome/pin-off.svg").size(13).text_color(t.ansi3))
+          .child(div().font_semibold().text_color(t.foreground).child("From closed spaces"))
+          .child(div().text_color(t.dim).child(String(lost.length))))
+        .children(lost.map((x) => {
+          const pic = icon(x.program, 14, t.dim);
+          return h_flex().id(`orphan-${x.terminal}`).h(28).px(6).gap(8).items_center().flex_none().rounded(6)
+            .hover((s) => s.bg(t.hover))
+            .when(Boolean(pic), (el) => el.child(pic))
+            .child(div().flex_none().truncate().max_w(180).text_color(t.foreground).child(x.name || x.terminal))
+            .child(div().flex_1().truncate().text_color(t.dim).child(folder(x.cwd)))
+            .child(this.button(t, `orphan-adopt-${x.terminal}`, "mods/my-workspace-chrome/pin.svg", "Pin to this space", () => adopt(x.terminal)))
+            .child(this.button(t, `orphan-tab-${x.terminal}`, "mods/workspace-chrome/terminal.svg", "Open as a tab here", () => openAsTab(x.terminal)))
+            .child(this.button(t, `orphan-kill-${x.terminal}`, "mods/my-pane/close.svg", "Kill", () => close(x.terminal)));
+        }));
     }
     if (!p.terminal) {
       return v_flex().id("pinned-empty").track_focus(this.handle).size_full().p(16).gap(6).items_center().justify_center().text_size(12).text_color(t.dim)

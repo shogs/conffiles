@@ -12,8 +12,8 @@
 // (ctrl-d) refuse to close a space's last pane while it has pins (blocksClose).
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex } from "gpui-base";
-import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes, exec } from "herdr";
-import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf, blocksClose } from "./pins.js";
+import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes, exec, notify } from "herdr";
+import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf, blocksClose, orphans, orphansHeight, sync as syncPinned, show as showPinned } from "./pins.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -203,6 +203,23 @@ export default class PanelRail extends View {
     localStorage.setItem("panels", JSON.stringify(this.panels));
   }
 
+  // Pins whose space closed (pins.js orphans): the pinned view's "pinned-orphans" block follows
+  // their count (a rewrite when it's off), and new ones get a notice and the pinned view shown.
+  // Those already there when this copy starts are only listed.
+  watchOrphans(root) {
+    if (!find(root, "pinned")) return;
+    const lost = orphans().map(x => x.terminal), node = find(root, "pinned-orphans");
+    const off = !node || Boolean(node.hidden) !== !lost.length || node.size?.px !== orphansHeight(lost.length);
+    // Once per count: the rewrite lands after this render.
+    if (off && this.synced !== lost.length) { this.synced = lost.length; syncPinned(); }
+    else if (!off) this.synced = lost.length;
+    const fresh = this.lost ? lost.filter(x => !this.lost.includes(x)) : [];
+    this.lost = lost;
+    if (!fresh.length) return;
+    notify({ title: `${fresh.length} pinned terminal${fresh.length > 1 ? "s" : ""} lost ${fresh.length > 1 ? "their" : "its"} space`, body: "They're listed in the pinned view.", level: "warning" });
+    showPinned();
+  }
+
   render() {
     const t = theme();
     const root = layout(), panel = find(root, "panel"), body = find(root, "panel-body");
@@ -217,6 +234,7 @@ export default class PanelRail extends View {
     this.syncPanel(space, panel, body, enabled);
     reveal();
     regroup();
+    this.watchOrphans(root);
     // A worktree space shares its main checkout's pinned view: the view changes with the group.
     if (space && groupOf(space.id) !== this.pinnedSpace) { this.pinnedSpace = groupOf(space.id); applyView(space.id); }
     const button = (p) => {
