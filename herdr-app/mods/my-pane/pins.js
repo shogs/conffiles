@@ -15,9 +15,9 @@
 // {space: terminal}, "pinned.width" (the column's px while not maximised), "pinned.agents"
 // (pinned terminals that report a status, as agents() describes agents; see pollAgents).
 //
-// One file, hard-linked into my-pinned-panes, my-pane, my-workspace-chrome and panel-rail
+// One file, hard-linked into my-pinned-panes, my-pane, my-workspace-chrome, my-menu and panel-rail
 // (mods can't import across folders): save it in place, don't replace it.
-import { run, exec, shared, setShared, layout, panes, spaces, focused } from "herdr";
+import { run, exec, shared, setShared, layout, panes, spaces, focused, notify } from "herdr";
 
 const KEY = "pinned.panes", OPEN = "pinned.open", MAX = "pinned.max", ZOOM = "pinned.zoom", WIDTH = "pinned.width", AGENTS = "pinned.agents", REVEAL = "pinned.reveal";
 
@@ -359,6 +359,21 @@ export function regroup() {
     for (const k of stale) { next[groupOf(k)] ??= next[k]; delete next[k]; }
     setShared(key, next);
   }
+}
+
+// Closing a space's last pane or tab, or the space, would leave its pins nowhere to show: refuse
+// with a notice while it has pins (a group's, only when no other space of the group stays).
+// Global pins don't count. Called before pane.close {pane}, tab.close {tab}, space.close {space}
+// (panel-rail's keys, my-pane's close button, my-menu). True when refused.
+export function blocksClose({ pane, tab, space }) {
+  if (pane) tab = panes().find((x) => x.pane === pane)?.tab;
+  const s = spaces().find((x) => x.id === space || x.tabs.some((t) => t.id === tab));
+  if (!s) return false;
+  if (!space && (s.tabs.length > 1 || (pane && s.tabs[0].panes > 1))) return false;
+  const key = groupOf(s.id);
+  if (!list(key).length || spaces().some((x) => x.id !== s.id && groupOf(x.id) === key)) return false;
+  notify({ title: "This space has pinned terminals", body: "Unpin or close them first.", level: "warning" });
+  return true;
 }
 
 // Close a pinned pane: it ends, as closing a tab's pane would.

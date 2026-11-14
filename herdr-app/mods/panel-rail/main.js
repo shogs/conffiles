@@ -8,11 +8,12 @@
 // or unpins the focused pane, panel-rail.pin-global pins the focused pinned pane across spaces
 // (or back), panel-rail.pinned-max maximises the view (pinned-max-here: only from a pinned pane); zoom, split-right,
 // split-down and close are the pane keys (see paneKey); go-left/right/up/down are pane.go (see go);
-// last-pane goes back to the pane (tab or pinned) used before.
+// last-pane goes back to the pane (tab or pinned) used before. close, close-tab (cmd-w) and eof
+// (ctrl-d) refuse to close a space's last pane while it has pins (blocksClose).
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex } from "gpui-base";
-import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes } from "herdr";
-import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf } from "./pins.js";
+import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes, exec } from "herdr";
+import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf, blocksClose } from "./pins.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -54,6 +55,8 @@ export default class PanelRail extends View {
         else if (command === "split-right") this.paneKey("pane.split", { direction: "right" }, cx);
         else if (command === "split-down") this.paneKey("pane.split", { direction: "down" }, cx);
         else if (command === "close") this.paneKey("pane.close", {}, cx);
+        else if (command === "close-tab") this.closeTab();
+        else if (command === "eof") this.eof();
       }
     });
   }
@@ -75,10 +78,30 @@ export default class PanelRail extends View {
   paneKey(command, args, cx) {
     const f = focused(), terminal = !f?.pane && f?.terminal;
     const pinned = terminal && visible().find(x => x.terminal === terminal);
-    if (!pinned) return run(command, args);
+    if (!pinned) {
+      if (command === "pane.close" && f?.pane && blocksClose({ pane: f.pane })) return;
+      return run(command, args);
+    }
     if (command === "pane.zoom") toggleZoom(terminal);
     else if (command === "pane.split") split(terminal, f.cwd ?? pinned.cwd, cx);
     else if (command === "pane.close") close(terminal);
+  }
+
+  // close-tab (cmd-w in glass): tab.close, unless it's the last tab of a space with pins.
+  closeTab() {
+    const tab = focused()?.tab;
+    if (tab && blocksClose({ tab })) return;
+    run("tab.close", {});
+  }
+
+  // eof (ctrl-d in glass, which takes the key from every terminal): a shell's ctrl-d would end it,
+  // so in the last pane of a space with pins it's refused; anything else gets ctrl-d typed.
+  eof() {
+    const f = focused();
+    if (!f?.terminal) return;
+    const p = f.pane && panes().find(x => x.pane === f.pane);
+    if (p?.program?.shell && blocksClose({ pane: f.pane })) return;
+    exec("hc", ["keys", f.terminal, "ctrl+d"]).catch(() => null);
   }
 
   // Where the keyboard has been, most recent first: a tab pane ("p:<pane>") or a pinned pane

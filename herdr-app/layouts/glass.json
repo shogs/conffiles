@@ -1430,6 +1430,83 @@
                   ],
                   "background": "#00000000",
                   "resizable": false
+                },
+                {
+                  "id": "pinned-card-t6b",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t6b",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t6b"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t6b",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t6b",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t6b",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t6b",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t6b"
+                          }
+                        },
+                        {
+                          "id": "pinned-right-t6b",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t6b",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t6b",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t6b",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
                 }
               ],
               "gap": 8,
@@ -1689,9 +1766,179 @@
               ],
               "gap": 8,
               "resizable": false
+            },
+            {
+              "id": "pinned-sp-spd7d232053ffd31327e6a040114b1ed4b",
+              "type": "column",
+              "children": [
+                {
+                  "id": "pinned-card-t6d",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t6d",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t6d"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t6d",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t6d",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t6d",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t6d",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t6d"
+                          }
+                        },
+                        {
+                          "id": "pinned-right-t6d",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t6d",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t6d",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t6d",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
+                }
+              ],
+              "gap": 8,
+              "resizable": false
+            },
+            {
+              "id": "pinned-sp-spcf38e29aaf8fbe6edb81b9d9b77c590b",
+              "type": "column",
+              "children": [
+                {
+                  "id": "pinned-card-t6j",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t6j",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t6j"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t6j",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t6j",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t6j",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t6j",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t6j"
+                          }
+                        },
+                        {
+                          "id": "pinned-right-t6j",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t6j",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t6j",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t6j",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
+                }
+              ],
+              "gap": 8,
+              "resizable": false
             }
           ],
-          "active": "pinned-sp-spc85e497deee6ea5b3075baf21d7d7581",
+          "active": "pinned-sp-spcf38e29aaf8fbe6edb81b9d9b77c590b",
           "size": {
             "weight": 1
           }
@@ -1790,7 +2037,7 @@
                           }
                         }
                       ],
-                      "active": "changes"
+                      "active": "files"
                     }
                   ],
                   "size": {
@@ -1867,5 +2114,6 @@
   "traffic_lights": [
     12,
     16
-  ]
+  ],
+  "terminal_menu": "my-menu"
 }

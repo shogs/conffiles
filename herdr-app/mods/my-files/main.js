@@ -1,9 +1,10 @@
 // A lazy file browser for the focused pane's folder, with bounded read-only previews.
-// With the keyboard (pane.go onto it, or my-files.focus): j/k or arrows move, l expands a folder,
+// With the keyboard (pane.go onto it, or my-files.focus): j/k or arrows move, l expands a folder or previews a file
+// (j/k scroll a line, ctrl-d/ctrl-u half a page, g/G to an end, h/Esc go back),
 // h collapses it (or its parent), Enter opens a file in nvim or toggles a folder, Shift-Enter opens
 // the file in nvim in a new tab, Esc goes back.
 import { View, div, svg } from "gpui-kit";
-import { v_flex, h_flex, Editor, EditorState, ScrollHandle } from "gpui-base";
+import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window, run, nextCommand } from "herdr";
 
 function location() {
@@ -13,12 +14,14 @@ function location() {
   return { cwd: pane?.cwd || f?.cwd || space?.folder, on, space: space?.id };
 }
 const key = () => JSON.stringify(location());
-const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
 const PER_FOLDER = 500, TOTAL = 5000;
+// A file preview's line height (px) and longest file it shows.
+const LINE = 18, MAX_CHARS = 400000;
 // The tree's keys while it has the keyboard, and what each does (see act).
 const KEYS = {
   j: "down", down: "down", k: "up", up: "up", g: "top", G: "bottom", "shift-g": "bottom",
   l: "right", right: "right", h: "left", left: "left", enter: "enter", return: "enter", "shift-enter": "tab", "shift-return": "tab", escape: "back", q: "back",
+  "ctrl-d": "page-down", "ctrl-u": "page-up",
 };
 
 async function directory(path, on) {
@@ -109,7 +112,7 @@ export default class Files extends View {
   }
 
   act(action, cx) {
-    if (this.file) { if (action === "back" || action === "left") this.show(null); return; }
+    if (this.file) { this.actFile(action); return; }
     const list = this.nav, i = list.findIndex(r => r.path === this.cursor), row = list[i];
     const to = n => { this.cursor = list[Math.max(0, Math.min(list.length - 1, i < 0 ? 0 : i + n))]?.path ?? null; };
     const open = row?.dir && this.folders.has(row.path);
@@ -118,7 +121,7 @@ export default class Files extends View {
       case "up": to(-1); break;
       case "top": this.cursor = list[0]?.path ?? null; break;
       case "bottom": this.cursor = list.at(-1)?.path ?? null; break;
-      case "right": if (row?.dir && !open) this.toggle(row.path, cx); else if (row && !row.dir) this.edit(row.path); break;
+      case "right": if (row?.dir && !open) this.toggle(row.path, cx); else if (row && !row.dir) this.show(row.path, cx); break;
       case "left":
         if (open) this.toggle(row.path, cx);
         else if (row?.parent) { this.cursor = row.parent; this.toggle(row.parent, cx); }
@@ -126,8 +129,11 @@ export default class Files extends View {
       case "enter": if (row?.dir) this.toggle(row.path, cx); else if (row) this.edit(row.path); break;
       case "tab": if (row && !row.dir) this.editInTab(row.path); break;
       case "back": {
-        const pane = focused()?.pane;
-        pane ? run("pane.focus", { pane }) : run("pane.go", { direction: "left" });
+        // Back to the pane or pinned terminal used before the panel.
+        const { pane, terminal } = this.from ?? focused() ?? {};
+        if (pane) run("pane.focus", { pane });
+        else if (terminal) run("pane.focus", { terminal });
+        else run("pane.go", { direction: "left" });
         break;
       }
     }
@@ -227,8 +233,39 @@ export default class Files extends View {
     run("tab.new", { name: path.split("/").pop(), folder: this.root, argv: ["nvim", path] });
   }
 
+  // In a file preview the keys scroll it: a line, half a page, or to an end; h/Esc go back.
+  actFile(action) {
+    const half = Math.max(1, Math.floor(this.shown() / 2));
+    const by = { down: 1, up: -1, "page-down": half, "page-up": -half, top: -Infinity, bottom: Infinity }[action];
+    if (by !== undefined) this.scrollTo(this.top + by);
+    else if (action === "back" || action === "left") this.show(null);
+  }
+
+  // How many lines fit in the preview, and moving its first shown line (kept so the last line can reach the bottom).
+  shown() { return Math.max(1, Math.floor((this.previewHeight ?? 400) / LINE)); }
+  scrollTo(top) {
+    this.top = Math.max(0, Math.min((this.lines?.length ?? 0) - this.shown(), top));
+  }
+
+  preview(t) {
+    const lines = this.lines, end = Math.min(lines.length, this.top + this.shown() + 1);
+    const digits = String(lines.length).length;
+    return v_flex().id("files-preview").flex_1().min_h(0).overflow_hidden().py(6).text_size(12).font_family(settings().font_family)
+      .on_size_change((size, cx) => { this.previewHeight = size.height - 12; this.scrollTo(this.top); cx.notify(); })
+      .on_mouse_down("left", () => this.handle.focus())
+      .on_scroll_wheel((e, cx) => {
+        this.wheel = (this.wheel ?? 0) - (e.delta_lines ? e.delta_lines.y : e.delta.y / LINE);
+        const n = Math.trunc(this.wheel);
+        if (!n) return;
+        this.wheel -= n; this.scrollTo(this.top + n); cx.notify();
+      })
+      .children(lines.slice(this.top, end).map((line, k) => h_flex().h(LINE).flex_none().gap(12).px(10)
+        .child(div().w(digits * 8).flex_none().text_right().text_color(t.dim).child(String(this.top + k + 1)))
+        .child(div().flex_1().min_w(0).whitespace_nowrap().overflow_hidden().child(line))));
+  }
+
   show(path, cx) {
-    this.code?.release(); this.code = null; this.file = path; this.fileError = null;
+    this.lines = null; this.top = 0; this.wheel = 0; this.file = path; this.fileError = null;
     if (!path || !cx) return;
     const context = this.context, root = this.root, on = this.on;
     cx.spawn(async cx => {
@@ -237,11 +274,8 @@ export default class Files extends View {
         if (this.file !== path || !this.current(context)) return;
         if (text === null) { this.fileError = "This file is no longer available"; return; }
         if (text.includes("\0")) { this.fileError = "Binary file · no text preview"; return; }
-        const t = theme(), ext = path.includes(".") ? path.split(".").pop() : "txt";
-        this.code = EditorState.new({ language: LANG[ext] ?? ext, readonly: true,
-          value: text.length > 400000 ? text.slice(0, 400000) + "\n… (file truncated)" : text,
-          font_family: settings().font_family, font_size: 12,
-          syntax: { keyword: t.ansi5, string: t.ansi2, comment: t.dim, function: t.ansi4, type: t.ansi3, number: t.ansi1, constant: t.ansi6 } });
+        const shown = text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) + "\n… (file truncated)" : text;
+        this.lines = shown.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n");
       } catch { if (this.file === path && this.current(context)) this.fileError = "Cannot preview this file (binary, too large, or unreadable)"; }
       finally { cx.notify(); }
     });
@@ -269,6 +303,9 @@ export default class Files extends View {
 
   render(cx) {
     if (this.here().key !== this.context?.key) this.refresh(cx);
+    // Where the keyboard was before the panel (a tab pane, or a pinned terminal with no pane), for Esc.
+    const f = focused();
+    if (!this.handle.is_focused() && (f?.pane || f?.terminal)) this.from = { pane: f.pane, terminal: f.terminal };
     const t = theme();
     this.nav = [];
     return v_flex().id("files").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(this.handle.is_focused() ? t.accent : t.border).text_color(t.foreground).text_size(13)
@@ -280,6 +317,6 @@ export default class Files extends View {
       .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(this.scroll).p(6).children(this.rows("", 0, [], t))
         .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "Loading files…" : this.root ? "No files" : "No folder"))))
         .when(this.limited, el => el.child(div().p(8).text_size(11).text_color(t.dim).child("File list limited to 500 entries per folder and 5,000 total")))))
-      .when(Boolean(this.file), el => el.child(this.code ? Editor.new(this.code).flex_1().min_h(0) : div().p(12).text_color(t.dim).child(this.fileError || "Loading file…")));
+      .when(Boolean(this.file), el => el.child(this.lines ? this.preview(t) : div().p(12).text_color(t.dim).child(this.fileError || "Loading file…")));
   }
 }

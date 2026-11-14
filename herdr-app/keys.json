@@ -140,7 +140,9 @@
     "ctrl-a f": "my-files.close",
     "ctrl-a x": "my-files.close",
     "ctrl-s f": "my-files.close",
-    "ctrl-s x": "my-files.close"
+    "ctrl-s x": "my-files.close",
+    "ctrl-d": "my-files.page-down",
+    "ctrl-u": "my-files.page-up"
   },
   "mod:my-changes": {
     "ctrl-a g": "my-changes.close",
@@ -156,6 +158,8 @@
     "cmd-shift-i": "panel-rail.office-max",
     "cmd-d": "panel-rail.split-right",
     "cmd-shift-d": "panel-rail.split-down",
+    "cmd-w": "panel-rail.close-tab",
+    "ctrl-d": "panel-rail.eof",
     "cmd-shift-w": "panel-rail.close",
     "cmd-shift-enter": "panel-rail.zoom",
     "ctrl-a |": "panel-rail.split-right",

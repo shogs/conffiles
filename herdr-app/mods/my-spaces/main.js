@@ -281,7 +281,7 @@ export default class Spaces extends View {
 
   menu(w) {
     // A popup is as tall as its items; height is only the most.
-    openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: w.id } } });
+    openOverlay({ mod: "my-menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: w.id } } });
   }
 
   orderingDue(now) {
@@ -541,7 +541,7 @@ export default class Spaces extends View {
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((s) => s.bg(t.hover).text_color(t.foreground)))
         .on_mouse_down("left", (e) => { if (e.click_count === 2) run("tab.rename", { id: tab.id }); })
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: tab.id, space: w.id } } }); })
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "my-menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: tab.id, space: w.id } } }); })
         .on_click(() => { if (!w.active) run("space.select", { id: w.id }); run("tab.select", { id: tab.id }); })
         .child(div().flex_none().font_family(settings().font_family).text_color(t.dim).child(n === tabs.length - 1 ? "└─" : "├─"))
         .child(div().flex_1().min_w(0).truncate().child(tab.named ? tab.name : `Tab ${tab.index}`))
