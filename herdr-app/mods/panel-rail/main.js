@@ -43,7 +43,7 @@ export default class PanelRail extends View {
         if (command === "files") this.focusPanel("files", "my-files", cx);
         else if (command === "changes") this.focusPanel("changes", "my-changes", cx);
         else if (command === "spaces") this.focusSpaces(cx);
-        else if (command === "pinned") togglePinned();
+        else if (command === "pinned") this.pinnedKey(cx);
         else if (command === "pin") this.pinFocused(cx);
         else if (command === "pinned-max") toggleMax();
         else if (command === "pinned-max-here") { const f = focused(); if (!f?.pane && f?.terminal && visible().some(x => x.terminal === f.terminal)) toggleMax(); }
@@ -59,6 +59,21 @@ export default class PanelRail extends View {
         else if (command === "eof") this.eof();
       }
     });
+  }
+
+  // panel-rail.pinned: from a pinned pane, close the view; anywhere else, open it (if closed)
+  // and go to the pinned pane used last (else the first). The blocks show once the layout
+  // applies, so focusing is tried again a moment later.
+  pinnedKey(cx) {
+    const f = focused();
+    if (!f?.pane && f?.terminal && visible().some(x => x.terminal === f.terminal)) return togglePinned();
+    showPinned();
+    const enter = () => {
+      const z = zoomOf(), shown = visible().filter(x => !z || x.terminal === z);
+      const to = shown.find(x => x.terminal === shared("pinned.last")) ?? shown[0];
+      if (to && focused()?.terminal !== to.terminal) run("pane.focus", { terminal: to.terminal });
+    };
+    for (const ms of [0, 120]) cx.timer.after(ms, enter);
   }
 
   // Pin the focused tab pane to this space's pinned view, or unpin the focused pinned pane.
