@@ -97,6 +97,14 @@
     "ctrl-s right": "pane.go:right",
     "ctrl-s up": "pane.go:up",
     "ctrl-s down": "pane.go:down",
+    "ctrl-a cmd left": "pane.go:left",
+    "ctrl-a cmd right": "pane.go:right",
+    "ctrl-a cmd up": "pane.go:up",
+    "ctrl-a cmd down": "pane.go:down",
+    "ctrl-s cmd left": "pane.go:left",
+    "ctrl-s cmd right": "pane.go:right",
+    "ctrl-s cmd up": "pane.go:up",
+    "ctrl-s cmd down": "pane.go:down",
     "ctrl-a ctrl-left": "pane.go:left",
     "ctrl-a ctrl-right": "pane.go:right",
     "ctrl-a ctrl-up": "pane.go:up",
@@ -192,6 +200,14 @@
     "ctrl-s ctrl-right": "panel-rail.go-right",
     "ctrl-s ctrl-up": "panel-rail.go-up",
     "ctrl-s ctrl-down": "panel-rail.go-down",
+    "ctrl-a cmd left": "panel-rail.go-left",
+    "ctrl-a cmd right": "panel-rail.go-right",
+    "ctrl-a cmd up": "panel-rail.go-up",
+    "ctrl-a cmd down": "panel-rail.go-down",
+    "ctrl-s cmd left": "panel-rail.go-left",
+    "ctrl-s cmd right": "panel-rail.go-right",
+    "ctrl-s cmd up": "panel-rail.go-up",
+    "ctrl-s cmd down": "panel-rail.go-down",
     "ctrl-a ;": "panel-rail.last-pane",
     "ctrl-s ;": "panel-rail.last-pane",
     "ctrl-a P": "panel-rail.pin",
@@ -199,3 +215,4 @@
     "ctrl-cmd-shift-enter": "panel-rail.pinned-max-here"
   }
 }
+

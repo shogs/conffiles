@@ -59,8 +59,7 @@
             "px": 90
           },
           "min": 60,
-          "max": 260,
-          "hidden": true
+          "max": 260
         },
         {
           "id": "sidebar-footer",
@@ -77,7 +76,7 @@
         }
       ],
       "size": {
-        "px": 76
+        "px": 268
       },
       "min": 44,
       "max": 480,
@@ -704,20 +703,97 @@
                   ],
                   "background": "#00000000",
                   "resizable": false
+                },
+                {
+                  "id": "pinned-card-t75",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t75",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t75"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t75",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t75",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t75",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t75",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t75"
+                          }
+                        },
+                        {
+                          "id": "pinned-right-t75",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t75",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t75",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t75",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
                 }
               ],
               "gap": 8,
               "resizable": false
             }
           ],
-          "active": "pinned-empty",
+          "active": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
           "size": {
-            "weight": 1
+            "weight": 2
           }
         }
       ],
       "size": {
-        "px": 464
+        "px": 651
       },
       "min": 240,
       "max": 100000,
@@ -809,15 +885,14 @@
                           }
                         }
                       ],
-                      "active": "changes"
+                      "active": "files"
                     }
                   ],
                   "size": {
                     "px": 368
                   },
                   "min": 280,
-                  "max": 900,
-                  "hidden": true
+                  "max": 900
                 }
               ],
               "padding": 8,
