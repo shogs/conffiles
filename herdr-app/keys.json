@@ -30,8 +30,9 @@
     "cmd-alt-shift-down": "pane.swap:down",
     "f2": "tab.rename",
     "shift-f2": "space.rename",
-    "cmd-/": "app.help",
+    "cmd-?": "app.help",
     "cmd-shift-/": "app.help",
+    "cmd-/": "layout.toggle:sidebar",
     "cmd-b": "layout.toggle:sidebar",
     "cmd-=": "app.zoom_in",
     "cmd-+": "app.zoom_in",
@@ -215,4 +216,3 @@
     "ctrl-cmd-shift-enter": "panel-rail.pinned-max-here"
   }
 }
-
