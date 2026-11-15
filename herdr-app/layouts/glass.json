@@ -456,6 +456,160 @@
                   ],
                   "background": "#00000000",
                   "resizable": false
+                },
+                {
+                  "id": "pinned-card-t7h",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t7h",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t7h"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t7h",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t7h",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t7h",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t7h",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t7h"
+                          }
+                        },
+                        {
+                          "id": "pinned-right-t7h",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t7h",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t7h",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t7h",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
+                },
+                {
+                  "id": "pinned-card-t7g",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t7g",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t7g"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t7g",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t7g",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t7g",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t7g",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t7g"
+                          }
+                        },
+                        {
+                          "id": "pinned-right-t7g",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t7g",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t7g",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t7g",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
                 }
               ],
               "gap": 8,
@@ -786,9 +940,9 @@
               "resizable": false
             }
           ],
-          "active": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
+          "active": "pinned-sp-sp901bd400856b824b71c02aa5ab318709",
           "size": {
-            "weight": 2
+            "weight": 4
           }
         }
       ],
@@ -823,7 +977,6 @@
               },
               "min": 170,
               "max": 800,
-              "hidden": true,
               "padding": [
                 8,
                 8
@@ -885,7 +1038,7 @@
                           }
                         }
                       ],
-                      "active": "files"
+                      "active": "changes"
                     }
                   ],
                   "size": {
