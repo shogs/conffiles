@@ -8,12 +8,13 @@
 // or unpins the focused pane, panel-rail.pin-global pins the focused pinned pane across spaces
 // (or back), panel-rail.pinned-max maximises the view (pinned-max-here: only from a pinned pane); zoom, split-right,
 // split-down and close are the pane keys (see paneKey); go-left/right/up/down are pane.go (see go);
+// swap-left/right/up/down are pane.swap, or on a pinned pane move it up or down (see swapKey);
 // last-pane goes back to the pane (tab or pinned) used before. close, close-tab (cmd-w) and eof
 // (ctrl-d) refuse to close a space's last pane while it has pins (blocksClose).
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex } from "gpui-base";
 import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes, exec, notify } from "herdr";
-import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf, blocksClose, orphans, orphansHeight, sync as syncPinned, show as showPinned } from "./pins.js";
+import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf, blocksClose, orphans, orphansHeight, sync as syncPinned, show as showPinned, move as movePin } from "./pins.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -49,6 +50,7 @@ export default class PanelRail extends View {
         else if (command === "pinned-max-here") { const f = focused(); if (!f?.pane && f?.terminal && visible().some(x => x.terminal === f.terminal)) toggleMax(); }
         else if (/^go-(left|right|up|down)$/.test(command)) this.go(command.slice(3), cx);
         else if (command === "last-pane") this.lastPlace();
+        else if (/^swap-(left|right|up|down)$/.test(command)) this.swapKey(command.slice(5));
         else if (command === "office-max") this.toggleOfficeMax();
         else if (command === "pin-global") { const f = focused(); if (!f?.pane && f?.terminal) toggleGlobal(f.terminal); }
         else if (command === "zoom") this.paneKey("pane.zoom", {}, cx);
@@ -158,6 +160,14 @@ export default class PanelRail extends View {
       const sidebar = find(layout(), "sidebar");
       if (sidebar && !sidebar.hidden) for (const ms of [0, 120]) cx.timer.after(ms, () => run("my-spaces.focus"));
     }
+  }
+
+  // pane.swap (layout:glass keys). On a pinned pane (where pane.swap fails), up/down move it
+  // above or below its neighbour in the pinned view; left/right do nothing there.
+  swapKey(direction) {
+    const f = focused();
+    if (f?.pane || !f?.terminal || !visible().some(x => x.terminal === f.terminal)) return run("pane.swap", { direction });
+    if (direction === "up" || direction === "down") movePin(f.terminal, direction === "down" ? 1 : -1);
   }
 
   open(id) {

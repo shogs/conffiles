@@ -59,7 +59,8 @@
             "px": 90
           },
           "min": 60,
-          "max": 260
+          "max": 260,
+          "hidden": true
         },
         {
           "id": "sidebar-footer",
@@ -122,8 +123,7 @@
             "weight": 1
           },
           "hidden": true,
-          "gap": 8,
-          "resizable": false
+          "gap": 8
         },
         {
           "id": "pinned-body",
@@ -296,8 +296,7 @@
                   "resizable": false
                 }
               ],
-              "gap": 8,
-              "resizable": false
+              "gap": 8
             },
             {
               "id": "pinned-sp-sp901bd400856b824b71c02aa5ab318709",
@@ -454,6 +453,9 @@
                       }
                     }
                   ],
+                  "size": {
+                    "weight": 0.6983532309532166
+                  },
                   "background": "#00000000",
                   "resizable": false
                 },
@@ -531,6 +533,9 @@
                       }
                     }
                   ],
+                  "size": {
+                    "weight": 0.6127356886863708
+                  },
                   "background": "#00000000",
                   "resizable": false
                 },
@@ -608,12 +613,14 @@
                       }
                     }
                   ],
+                  "size": {
+                    "weight": 1.688910961151123
+                  },
                   "background": "#00000000",
                   "resizable": false
                 }
               ],
-              "gap": 8,
-              "resizable": false
+              "gap": 8
             },
             {
               "id": "pinned-sp-sp6c3fdd02677e195a7de7f2e49949976d",
@@ -774,8 +781,7 @@
                   "resizable": false
                 }
               ],
-              "gap": 8,
-              "resizable": false
+              "gap": 8
             },
             {
               "id": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
@@ -855,6 +861,9 @@
                       }
                     }
                   ],
+                  "size": {
+                    "weight": 1.1584614515304565
+                  },
                   "background": "#00000000",
                   "resizable": false
                 },
@@ -936,18 +945,17 @@
                   "resizable": false
                 }
               ],
-              "gap": 8,
-              "resizable": false
+              "gap": 8
             }
           ],
-          "active": "pinned-sp-sp901bd400856b824b71c02aa5ab318709",
+          "active": "pinned-empty",
           "size": {
-            "weight": 4
+            "weight": 1
           }
         }
       ],
       "size": {
-        "px": 651
+        "px": 603
       },
       "min": 240,
       "max": 100000,
@@ -977,6 +985,7 @@
               },
               "min": 170,
               "max": 800,
+              "hidden": true,
               "padding": [
                 8,
                 8
@@ -1038,14 +1047,15 @@
                           }
                         }
                       ],
-                      "active": "changes"
+                      "active": "files"
                     }
                   ],
                   "size": {
                     "px": 368
                   },
                   "min": 280,
-                  "max": 900
+                  "max": 900,
+                  "hidden": true
                 }
               ],
               "padding": 8,

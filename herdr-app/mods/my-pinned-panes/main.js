@@ -2,7 +2,7 @@
 //   props {title: true}   the view's title row: "Pinned", count, maximise, hide
 //   props {terminal}      a pinned pane's header, like my-pane's: icon, name, folder,
 //                         status; pin across spaces (the sideways pin), pin (unpin); on
-//                         hover split down, zoom, close
+//                         hover split down, zoom, close; dragged onto another, swaps the two
 //   props {orphans: true} pins whose space closed (pins.js orphans), in every space: pin here,
 //                         open as a tab, or kill
 //   props {}              the empty view's hint
@@ -14,8 +14,16 @@
 // The view opens and closes with the sidebar's pin button and ctrl-a/ctrl-s i.
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { props, run, theme, home, terminals, agents, focused, nextCommand, shared } from "herdr";
-import { all, visible, unpin, close, split, toggle, toggleMax, toggleZoom, zoomOf, isMax, isGlobal, toggleGlobal, orphans, adopt, openAsTab } from "./pins.js";
+import { props, run, theme, home, terminals, agents, focused, nextCommand, shared, setShared } from "herdr";
+import { all, visible, unpin, close, split, toggle, toggleMax, toggleZoom, zoomOf, isMax, isGlobal, toggleGlobal, orphans, adopt, openAsTab, swap } from "./pins.js";
+
+// Dragging a header onto another swaps the two pins (same section only). There are no drag
+// events across mods, so a press on a header remembers it (shared "pinned.drag"), and a release
+// on another header of its section swaps them. A release elsewhere leaves it until the next press,
+// so the drop target's outline only shows for a few seconds after the press.
+const DRAG = "pinned.drag";
+const dragging = () => { const d = shared(DRAG); return d && Date.now() - d.at < 8000 ? d.terminal : null; };
+const section = (terminal) => Object.keys(all()).find((k) => all()[k].some((x) => x.terminal === terminal));
 
 function folder(cwd) {
   if (!cwd) return "";
@@ -114,8 +122,17 @@ export default class PinnedPanes extends View {
     const pic = icon(program, 14, t.dim);
     const st = agent?.status;
     const zoomed = zoomOf() === terminal;
+    const from = dragging(), target = this.hovered && from && from !== terminal && section(from) === section(terminal);
     return h_flex().id(`pinned-head-${terminal}`).track_focus(this.handle).size_full().px(10).gap(8).items_center()
-      .relative().bg(t.background).rounded_t(10).border_t(1).border_x(1).border_color(frame).text_size(12)
+      .relative().bg(target ? t.selected : t.background).rounded_t(10).border_t(1).border_x(1).border_color(target ? t.accent : frame).text_size(12)
+      .when(Boolean(from), (el) => el.cursor_grabbing())
+      .on_mouse_down("left", () => setShared(DRAG, { terminal, at: Date.now() }))
+      .on_mouse_up("left", () => {
+        const a = dragging();
+        if (!a) return;
+        setShared(DRAG, null);
+        if (a !== terminal && section(a) === section(terminal)) swap(a, terminal);
+      })
       // The line under the title stays the plain divider, as on a tab's pane.
       .child(div().absolute().bottom(0).left(0).right(0).h(1).bg(t.border))
       .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })

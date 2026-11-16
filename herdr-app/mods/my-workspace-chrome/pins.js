@@ -7,7 +7,7 @@
 //
 // The column is a title row, "pinned-orphans" (pins whose space closed: see orphans), "pinned-global" (the global pins' cards) and a stack,
 // "pinned-body", holding "pinned-empty" and one column of cards per space with pins. Pin, unpin, split and close rewrite that
-// structure (layout.set); open, zoom and maximise and switching spaces only show, hide,
+// structure (layout.set), as do move and swap (reorder); open, zoom and maximise and switching spaces only show, hide,
 // select and resize nodes (applyView), which panel-rail runs when the space changes.
 //
 // shared: "pinned.panes" {space or "*": [{terminal, name, cwd, program, space, tab, own}]} (space
@@ -115,9 +115,11 @@ function view(space) {
   };
 }
 
-function card(p, hidden) {
+// size: what the card has now (a drag between cards), kept across rewrites.
+function card(p, hidden, size) {
   const id = slug(p.terminal);
   return {
+    ...(size ? { size } : {}),
     // Framed like a tab's pane, accent all round while it has the keyboard. A layout border
     // can't do that here (a column's focus doesn't see terminal blocks, and a block's border
     // also crosses under the header), so the header and three my-pinned-frame strips draw it.
@@ -150,20 +152,22 @@ export function sync() {
   const column = find(root, "pinned"), work = find(root, "work");
   if (!column) return;
   const space = activeSpace(), v = view(space), w = width(column);
+  const sized = (p, hidden) => card(p, hidden, find(column, cardId(p.terminal))?.size);
   column.children = [
     { id: "pinned-title", type: "block", size: { px: 30 }, content: { mod: "my-pinned-panes", props: { title: true } } },
     { id: "pinned-orphans", type: "block", hidden: !v.orphans, size: { px: orphansHeight(v.orphans) }, content: { mod: "my-pinned-panes", props: { orphans: true } } },
     {
-      id: "pinned-global", type: "column", gap: 8, resizable: false, hidden: !v.global, size: { weight: v.gWeight },
-      children: globals().map((p) => card(p, v.hidden.has(cardId(p.terminal)))),
+      id: "pinned-global", type: "column", gap: 8, hidden: !v.global, size: { weight: v.gWeight },
+      children: globals().map((p) => sized(p, v.hidden.has(cardId(p.terminal)))),
     },
     {
       id: "pinned-body", type: "stack", active: v.body, hidden: !v.own, size: { weight: v.ownWeight },
       children: [
         { id: "pinned-empty", type: "block", content: { mod: "my-pinned-panes", props: {} } },
         ...Object.entries(all()).filter(([s, pins]) => s !== GLOBAL && !gone(s) && pins.length).map(([s, pins]) => ({
-          id: bodyId(s), type: "column", gap: 8, resizable: false,
-          children: pins.map((p) => card(p, s === space && v.hidden.has(cardId(p.terminal)))),
+          // Resizable: drag between cards (Herdr keeps the sizes by card id).
+          id: bodyId(s), type: "column", gap: 8,
+          children: pins.map((p) => sized(p, s === space && v.hidden.has(cardId(p.terminal)))),
         })),
       ],
     },
@@ -405,6 +409,23 @@ export function blocksClose({ pane, tab, space }) {
   if (!list(key).length || spaces().some((x) => x.id !== s.id && groupOf(x.id) === key)) return false;
   notify({ title: "This space has pinned terminals", body: "Unpin or close them first.", level: "warning" });
   return true;
+}
+
+// Reorder within a section (global or a space's): move a pin one place up or down, or swap
+// two pins (a header dragged onto another, see my-pinned-panes). The pane keeps the keyboard.
+export function move(terminal, by) {
+  const key = keyOf(terminal), pins = [...(all()[key] ?? [])], i = pins.findIndex((x) => x.terminal === terminal);
+  if (i < 0 || !pins[i + by]) return;
+  swap(terminal, pins[i + by].terminal);
+}
+export function swap(a, b) {
+  const key = keyOf(a), pins = [...(all()[key] ?? [])];
+  const i = pins.findIndex((x) => x.terminal === a), j = pins.findIndex((x) => x.terminal === b);
+  if (i < 0 || j < 0 || i === j) return;
+  [pins[i], pins[j]] = [pins[j], pins[i]];
+  const had = focused()?.terminal;
+  save({ ...all(), [key]: pins });
+  if (had === a || had === b) run("pane.focus", { terminal: had });
 }
 
 // Close a pinned pane: it ends, as closing a tab's pane would.
