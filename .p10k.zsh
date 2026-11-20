@@ -380,6 +380,8 @@
       local   modified='%178F'  # yellow foreground
       local  untracked='%39F'   # blue foreground
       local conflicted='%196F'  # red foreground
+      # Darker on the light band (set at the end of this file).
+      (( _p10k_light )) && clean='%28F' modified='%130F' untracked='%25F'
     else
       # Styling for incomplete and stale Git status.
       local       meta='%244F'  # grey foreground
@@ -1639,6 +1641,26 @@
   # can slow down prompt by 1-2 milliseconds, so it's better to keep it turned off unless you
   # really need it.
   typeset -g POWERLEVEL9K_DISABLE_HOT_RELOAD=true
+
+  # macOS in light mode: a pale band, and darker text colors that read on it.
+  # Checked once per shell, so shells opened before a switch keep their colors.
+  if [[ $OSTYPE == darwin* && $(defaults read -g AppleInterfaceStyle 2>/dev/null) != Dark ]]; then
+    typeset -g _p10k_light=1
+    typeset -g POWERLEVEL9K_BACKGROUND=254
+    typeset -g POWERLEVEL9K_VCS_VISUAL_IDENTIFIER_COLOR=28
+    typeset -g POWERLEVEL9K_OS_ICON_FOREGROUND=236
+    typeset -g POWERLEVEL9K_DIR_FOREGROUND=24
+    typeset -g POWERLEVEL9K_DIR_SHORTENED_FOREGROUND=60
+    typeset -g POWERLEVEL9K_DIR_ANCHOR_FOREGROUND=25
+    typeset -g POWERLEVEL9K_VCS_CLEAN_FOREGROUND=28
+    typeset -g POWERLEVEL9K_VCS_UNTRACKED_FOREGROUND=28
+    typeset -g POWERLEVEL9K_VCS_MODIFIED_FOREGROUND=130
+    typeset -g POWERLEVEL9K_STATUS_OK_FOREGROUND=28
+    typeset -g POWERLEVEL9K_STATUS_OK_PIPE_FOREGROUND=28
+    typeset -g POWERLEVEL9K_COMMAND_EXECUTION_TIME_FOREGROUND=242
+    typeset -g POWERLEVEL9K_BACKGROUND_JOBS_FOREGROUND=30
+    typeset -g POWERLEVEL9K_TIME_FOREGROUND=23
+  fi
 
   # If p10k is already loaded, reload configuration.
   # This works even with POWERLEVEL9K_DISABLE_HOT_RELOAD=true.

@@ -1,4 +1,5 @@
-// The uncommitted changes of the focused pane's repo, a diff per file, and a commit box.
+// The uncommitted changes of the shown space's repo, a diff per file, and a commit box.
+// It follows spaces, not focus: a worktree space shows its folder, any other its first terminal's.
 // With the keyboard (pane.go onto it, or my-changes.focus): j/k or arrows move and show each
 // file's diff, Enter opens a side-by-side diff (nvimdiff: HEAD | working copy) beside the pane
 // (Shift-Enter: in a new tab), l opens the file to edit, h hides the diff, Esc goes back.
@@ -6,13 +7,6 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list, ScrollHandle } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, run, nextCommand } from "herdr";
 
-function location() {
-  const space = spaces().find((s) => s.active), f = focused();
-  const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
-  const on = f?.pane === null ? (f.terminal?.includes("/") ? f.terminal.split("/")[0] : null) : space?.machine ?? null;
-  return { cwd: pane?.cwd || f?.cwd || space?.folder, on };
-}
-const key = () => JSON.stringify(location());
 // The list's keys while it has the keyboard, and what each does (see act).
 const KEYS = {
   j: "down", down: "down", k: "up", up: "up", g: "top", G: "bottom", "shift-g": "bottom",
@@ -67,14 +61,44 @@ export default class Changes extends View {
       const has = this.handle.is_focused();
       if (has !== this.hadFocus) { this.hadFocus = has; cx.notify(); }
     });
+    this.linked = {}; this.asking = new Set();
     this.refresh(cx);
     cx.timer.every(10000, (cx) => this.refresh(cx));
+  }
+
+  // Where the shown space is: its folder when that's a linked git worktree (a worktree space),
+  // else its first terminal's live folder (as the spaces sidebar has it). `check`: not known yet.
+  location() {
+    const space = spaces().find((s) => s.active);
+    if (!space) return { cwd: null, on: null };
+    const on = space.machine ?? null, folder = space.folder || null;
+    const linked = folder ? this.linked[JSON.stringify([on, folder])] : false;
+    if (linked === undefined) return { cwd: null, on, check: folder };
+    if (linked) return { cwd: folder, on };
+    const tabs = new Set(space.tabs.map((t) => t.id));
+    return { cwd: panes().find((p) => tabs.has(p.tab) && p.cwd)?.cwd || folder, on };
+  }
+
+  // A linked worktree's git dir differs from its repo's common one. Asked once per folder.
+  checkWorktree(on, folder, cx) {
+    const k = JSON.stringify([on, folder]);
+    if (k in this.linked || this.asking.has(k)) return;
+    this.asking.add(k);
+    cx.spawn(async (cx) => {
+      try {
+        const r = await exec("git", ["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"], { cwd: folder, on });
+        const [dir, common] = r.stdout.trim().split("\n");
+        this.linked[k] = r.code === 0 && dir !== common;
+      } catch { this.linked[k] = false; }
+      finally { this.asking.delete(k); cx.notify(); }
+    });
   }
 
   // While the list has the keyboard it stays on the repo it showed.
   here() {
     if (this.context && this.handle.is_focused()) return { ...this.where, key: this.context };
-    return { ...location(), key: key() };
+    const where = this.location();
+    return { ...where, key: JSON.stringify(where) };
   }
 
   // Its open key or ctrl-a x while it has the keyboard (keys.json mod:my-changes): hide the side panel,
@@ -161,12 +185,13 @@ export default class Changes extends View {
 
   refresh(cx) {
     if (this.loading || this.busy) return;
-    const { cwd, on, key: context } = this.here();
+    const { cwd, on, check, key: context } = this.here();
     this.where = { cwd, on };
     if (context !== this.context) {
       this.context = context; this.root = null; this.files = []; this.open = null;
       this.setLines([]); this.message = ""; this.input.set_value(""); this.error = null; this.note = null; this.watched = null; this.closed = false; this.limited = false;
     }
+    if (check) this.checkWorktree(on, check, cx);
     if (!cwd) return;
     this.loading = true;
     cx.spawn(async (cx) => {

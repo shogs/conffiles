@@ -11,7 +11,7 @@
 // swap-left/right/up/down are pane.swap, or on a pinned pane move it up or down (see swapKey);
 // last-pane goes back to the pane (tab or pinned) used before. close, close-tab (cmd-w) and eof
 // (ctrl-d) refuse to close a space's last pane while it has pins (blocksClose).
-import { View, div, svg, image } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { v_flex } from "gpui-base";
 import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes, exec, notify } from "herdr";
 import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf, blocksClose, orphans, orphansHeight, sync as syncPinned, show as showPinned, move as movePin } from "./pins.js";
@@ -25,10 +25,10 @@ function find(node, id) {
   return null;
 }
 
-// The labels are pictures (no rotated text in mods), drawn at half their pixel size.
+// The labels are outlined text turned sideways (no rotated text in mods), tinted like the icons.
 const PANELS = [
-  { id: "files", icon: "mods/files/file.svg", label: "files", w: 9, h: 23 },
-  { id: "changes", icon: "mods/changes/changes.svg", label: "changes", w: 11, h: 47 },
+  { id: "files", icon: "mods/files/file.svg", label: "files", w: 12.33, h: 26.79 },
+  { id: "changes", icon: "mods/changes/changes.svg", label: "changes", w: 12.33, h: 50.86 },
 ];
 
 export default class PanelRail extends View {
@@ -272,7 +272,7 @@ export default class PanelRail extends View {
           else { run("layout.select", { stack: "panel-body", child: p.id }); run("layout.show", { id: "panel" }); }
         })
         .child(svg(p.icon).size(14))
-        .child(image(`mods/panel-rail/label-${p.label}${on ? "-on" : ""}.png`).w(p.w).h(p.h));
+        .child(svg(`mods/panel-rail/label-${p.label}.svg`).w(p.w).h(p.h));
     };
     return v_flex().size_full().pt(10).gap(6).items_center().bg(t.chrome)
       .children(PANELS.filter(p => enabled.includes(p.id)).map(button));

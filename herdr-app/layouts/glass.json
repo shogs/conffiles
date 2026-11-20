@@ -181,7 +181,8 @@
                           "type": "block",
                           "content": {
                             "terminal": "t1k"
-                          }
+                          },
+                          "background": "canvas"
                         },
                         {
                           "id": "pinned-right-t1k",
@@ -258,7 +259,8 @@
                           "type": "block",
                           "content": {
                             "terminal": "t56"
-                          }
+                          },
+                          "background": "canvas"
                         },
                         {
                           "id": "pinned-right-t56",
@@ -342,7 +344,8 @@
                           "type": "block",
                           "content": {
                             "terminal": "t53"
-                          }
+                          },
+                          "background": "canvas"
                         },
                         {
                           "id": "pinned-right-t53",
@@ -376,6 +379,90 @@
                       }
                     }
                   ],
+                  "size": {
+                    "weight": 0.742991030216217
+                  },
+                  "background": "#00000000",
+                  "resizable": false
+                },
+                {
+                  "id": "pinned-card-t83",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t83",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t83"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t83",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t83",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t83",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t83",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t83"
+                          },
+                          "background": "canvas"
+                        },
+                        {
+                          "id": "pinned-right-t83",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t83",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t83",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t83",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "size": {
+                    "weight": 1.32760751247406
+                  },
                   "background": "#00000000",
                   "resizable": false
                 },
@@ -419,7 +506,8 @@
                           "type": "block",
                           "content": {
                             "terminal": "t55"
-                          }
+                          },
+                          "background": "canvas"
                         },
                         {
                           "id": "pinned-right-t55",
@@ -454,7 +542,7 @@
                     }
                   ],
                   "size": {
-                    "weight": 0.6983532309532166
+                    "weight": 0.6277546286582947
                   },
                   "background": "#00000000",
                   "resizable": false
@@ -499,7 +587,8 @@
                           "type": "block",
                           "content": {
                             "terminal": "t7h"
-                          }
+                          },
+                          "background": "canvas"
                         },
                         {
                           "id": "pinned-right-t7h",
@@ -579,7 +668,8 @@
                           "type": "block",
                           "content": {
                             "terminal": "t7g"
-                          }
+                          },
+                          "background": "canvas"
                         },
                         {
                           "id": "pinned-right-t7g",
@@ -666,7 +756,8 @@
                           "type": "block",
                           "content": {
                             "terminal": "t5g"
-                          }
+                          },
+                          "background": "canvas"
                         },
                         {
                           "id": "pinned-right-t5g",
@@ -702,83 +793,6 @@
                   ],
                   "background": "#00000000",
                   "resizable": false
-                },
-                {
-                  "id": "pinned-card-t5j",
-                  "type": "column",
-                  "children": [
-                    {
-                      "id": "pinned-head-t5j",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-panes",
-                        "props": {
-                          "terminal": "t5j"
-                        }
-                      },
-                      "size": {
-                        "px": 30
-                      }
-                    },
-                    {
-                      "id": "pinned-mid-t5j",
-                      "type": "row",
-                      "children": [
-                        {
-                          "id": "pinned-left-t5j",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t5j",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        },
-                        {
-                          "id": "pinned-term-t5j",
-                          "type": "block",
-                          "content": {
-                            "terminal": "t5j"
-                          }
-                        },
-                        {
-                          "id": "pinned-right-t5j",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t5j",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        }
-                      ],
-                      "resizable": false
-                    },
-                    {
-                      "id": "pinned-foot-t5j",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-frame",
-                        "props": {
-                          "terminal": "t5j",
-                          "edge": "bottom"
-                        }
-                      },
-                      "size": {
-                        "px": 10
-                      }
-                    }
-                  ],
-                  "background": "#00000000",
-                  "resizable": false
                 }
               ],
               "gap": 8
@@ -787,86 +801,6 @@
               "id": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
               "type": "column",
               "children": [
-                {
-                  "id": "pinned-card-t5p",
-                  "type": "column",
-                  "children": [
-                    {
-                      "id": "pinned-head-t5p",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-panes",
-                        "props": {
-                          "terminal": "t5p"
-                        }
-                      },
-                      "size": {
-                        "px": 30
-                      }
-                    },
-                    {
-                      "id": "pinned-mid-t5p",
-                      "type": "row",
-                      "children": [
-                        {
-                          "id": "pinned-left-t5p",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t5p",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        },
-                        {
-                          "id": "pinned-term-t5p",
-                          "type": "block",
-                          "content": {
-                            "terminal": "t5p"
-                          }
-                        },
-                        {
-                          "id": "pinned-right-t5p",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t5p",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        }
-                      ],
-                      "resizable": false
-                    },
-                    {
-                      "id": "pinned-foot-t5p",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-frame",
-                        "props": {
-                          "terminal": "t5p",
-                          "edge": "bottom"
-                        }
-                      },
-                      "size": {
-                        "px": 10
-                      }
-                    }
-                  ],
-                  "size": {
-                    "weight": 1.1584614515304565
-                  },
-                  "background": "#00000000",
-                  "resizable": false
-                },
                 {
                   "id": "pinned-card-t75",
                   "type": "column",
@@ -907,7 +841,8 @@
                           "type": "block",
                           "content": {
                             "terminal": "t75"
-                          }
+                          },
+                          "background": "canvas"
                         },
                         {
                           "id": "pinned-right-t75",
@@ -943,19 +878,260 @@
                   ],
                   "background": "#00000000",
                   "resizable": false
+                },
+                {
+                  "id": "pinned-card-t8d",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t8d",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t8d"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t8d",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t8d",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t8d",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t8d",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t8d"
+                          },
+                          "background": "canvas"
+                        },
+                        {
+                          "id": "pinned-right-t8d",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t8d",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t8d",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t8d",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
+                }
+              ],
+              "gap": 8
+            },
+            {
+              "id": "pinned-sp-sp0b552cb73bd18d5b561967fd6d61dc54",
+              "type": "column",
+              "children": [
+                {
+                  "id": "pinned-card-t85",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t85",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t85"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t85",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t85",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t85",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t85",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t85"
+                          },
+                          "background": "canvas"
+                        },
+                        {
+                          "id": "pinned-right-t85",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t85",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t85",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t85",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
+                },
+                {
+                  "id": "pinned-card-t89",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t89",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t89"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t89",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t89",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t89",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t89",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t89"
+                          },
+                          "background": "canvas"
+                        },
+                        {
+                          "id": "pinned-right-t89",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t89",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t89",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t89",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
                 }
               ],
               "gap": 8
             }
           ],
-          "active": "pinned-empty",
+          "active": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
           "size": {
-            "weight": 1
+            "weight": 2
           }
         }
       ],
       "size": {
-        "px": 603
+        "px": 627
       },
       "min": 240,
       "max": 100000,
@@ -1009,7 +1185,7 @@
                         "height": 30,
                         "position": "top"
                       },
-                      "background": "#00000000",
+                      "background": "canvas",
                       "border": {
                         "width": 1,
                         "color": "border"
@@ -1047,15 +1223,14 @@
                           }
                         }
                       ],
-                      "active": "files"
+                      "active": "changes"
                     }
                   ],
                   "size": {
-                    "px": 368
+                    "px": 389
                   },
                   "min": 280,
-                  "max": 900,
-                  "hidden": true
+                  "max": 900
                 }
               ],
               "padding": 8,
@@ -1075,7 +1250,8 @@
           }
         }
       ],
-      "resizable": false
+      "resizable": false,
+      "background": "canvas"
     },
     {
       "id": "rail",
@@ -1094,12 +1270,9 @@
     "image": "backgrounds/glass.jpg",
     "fit": "cover"
   },
-  "theme": "graphite",
-  "colors": {
-    "border": "#ffffff1a",
-    "canvas": "#00000000",
-    "chrome": "#0b0c1280",
-    "surface": "#10111799"
+  "theme": {
+    "light": "glass-light",
+    "dark": "glass-dark"
   },
   "terminal_padding": [
     14,
