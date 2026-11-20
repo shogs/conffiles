@@ -130,7 +130,7 @@ function card(p, hidden, size) {
         id: `pinned-mid-${id}`, type: "row", resizable: false,
         children: [
           { id: `pinned-left-${id}`, type: "block", size: { px: 1 }, content: { mod: "my-pinned-frame", props: { terminal: p.terminal, edge: "side" } } },
-          { id: `pinned-term-${id}`, type: "block", content: { terminal: p.terminal } },
+          { id: `pinned-term-${id}`, type: "block", background: "canvas", content: { terminal: p.terminal } },
           { id: `pinned-right-${id}`, type: "block", size: { px: 1 }, content: { mod: "my-pinned-frame", props: { terminal: p.terminal, edge: "side" } } },
         ],
       },
