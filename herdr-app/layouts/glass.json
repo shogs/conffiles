@@ -878,84 +878,6 @@
                   ],
                   "background": "#00000000",
                   "resizable": false
-                },
-                {
-                  "id": "pinned-card-t8d",
-                  "type": "column",
-                  "children": [
-                    {
-                      "id": "pinned-head-t8d",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-panes",
-                        "props": {
-                          "terminal": "t8d"
-                        }
-                      },
-                      "size": {
-                        "px": 30
-                      }
-                    },
-                    {
-                      "id": "pinned-mid-t8d",
-                      "type": "row",
-                      "children": [
-                        {
-                          "id": "pinned-left-t8d",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t8d",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        },
-                        {
-                          "id": "pinned-term-t8d",
-                          "type": "block",
-                          "content": {
-                            "terminal": "t8d"
-                          },
-                          "background": "canvas"
-                        },
-                        {
-                          "id": "pinned-right-t8d",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t8d",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        }
-                      ],
-                      "resizable": false
-                    },
-                    {
-                      "id": "pinned-foot-t8d",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-frame",
-                        "props": {
-                          "terminal": "t8d",
-                          "edge": "bottom"
-                        }
-                      },
-                      "size": {
-                        "px": 10
-                      }
-                    }
-                  ],
-                  "background": "#00000000",
-                  "resizable": false
                 }
               ],
               "gap": 8
@@ -1126,7 +1048,7 @@
           ],
           "active": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
           "size": {
-            "weight": 2
+            "weight": 1
           }
         }
       ],
@@ -1174,37 +1096,37 @@
                 {
                   "id": "panel-left",
                   "type": "column",
-                  "size": {
-                    "px": 320
-                  },
-                  "min": 220,
-                  "max": 900,
-                  "gap": 8,
-                  "hidden": true,
                   "children": [
                     {
                       "id": "files-left",
                       "type": "block",
-                      "hidden": true,
                       "content": {
                         "mod": "my-files",
                         "props": {
                           "side": "left"
                         }
-                      }
+                      },
+                      "hidden": true
                     },
                     {
                       "id": "changes-left",
                       "type": "block",
-                      "hidden": true,
                       "content": {
                         "mod": "my-changes",
                         "props": {
                           "side": "left"
                         }
-                      }
+                      },
+                      "hidden": true
                     }
-                  ]
+                  ],
+                  "size": {
+                    "px": 320
+                  },
+                  "min": 220,
+                  "max": 900,
+                  "hidden": true,
+                  "gap": 8
                 },
                 {
                   "id": "main",
@@ -1238,37 +1160,40 @@
                 {
                   "id": "panel-right",
                   "type": "column",
-                  "size": {
-                    "px": 389
-                  },
-                  "min": 220,
-                  "max": 900,
-                  "gap": 8,
-                  "hidden": false,
                   "children": [
                     {
                       "id": "files-right",
                       "type": "block",
-                      "hidden": true,
                       "content": {
                         "mod": "my-files",
                         "props": {
                           "side": "right"
                         }
+                      },
+                      "size": {
+                        "weight": 0.5664120316505432
                       }
                     },
                     {
                       "id": "changes-right",
                       "type": "block",
-                      "hidden": true,
                       "content": {
                         "mod": "my-changes",
                         "props": {
                           "side": "right"
                         }
+                      },
+                      "size": {
+                        "weight": 1.4335875511169434
                       }
                     }
-                  ]
+                  ],
+                  "size": {
+                    "px": 389
+                  },
+                  "min": 220,
+                  "max": 900,
+                  "gap": 8
                 }
               ],
               "padding": 8,
@@ -1288,8 +1213,8 @@
           }
         }
       ],
-      "resizable": false,
-      "background": "canvas"
+      "background": "canvas",
+      "resizable": false
     },
     {
       "id": "rail",

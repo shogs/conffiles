@@ -2,16 +2,19 @@
 // It follows spaces, not focus: a worktree space shows its folder, any other its first terminal's.
 // With the keyboard (pane.go onto it, or my-changes.focus): j/k or arrows move and show each
 // file's diff, Enter opens a side-by-side diff (nvimdiff: HEAD | working copy) beside the pane
-// (Shift-Enter: in a new tab), l opens the file to edit, h hides the diff, Esc goes back.
+// (Shift-Enter: in a new tab), ctrl-t opens git difftool (as lazygit), l opens the file to edit,
+// h hides the diff, Esc goes back.
+// Mouse: click shows a file's diff; double-click it (or its diff) opens git difftool (diff.tool);
+// right-click offers either.
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list, ScrollHandle } from "gpui-base";
-import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, run, nextCommand, props, shared, setShared } from "herdr";
+import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, run, nextCommand, props, shared, setShared, openOverlay } from "herdr";
 
 // The list's keys while it has the keyboard, and what each does (see act).
 const KEYS = {
   j: "down", down: "down", k: "up", up: "up", g: "top", G: "bottom", "shift-g": "bottom",
   l: "edit", right: "edit", enter: "diff", return: "diff", "shift-enter": "tab", "shift-return": "tab",
-  h: "hide", left: "hide", escape: "back", q: "back",
+  h: "hide", left: "hide", escape: "back", q: "back", "ctrl-t": "difftool",
 };
 // Reads write nothing under .git (no index refresh or lock, no fsmonitor cookie):
 // the folder watch would see it, and every refresh would start the next one.
@@ -51,7 +54,10 @@ export default class Changes extends View {
     cx.spawn(async (cx) => {
       for (;;) {
         const command = String(await nextCommand()).replace(/^my-changes\./, "");
-        if (command === "focus") this.arrive(cx);
+        // diff:<path> / difftool:<path> (the right-click menu, mods/my-changes-menu).
+        const menu = /^(diff|difftool):(.*)$/s.exec(command), file = menu && this.files.find((f) => f.path === menu[2]);
+        if (menu) { if (file) menu[1] === "diff" ? this.diff(file) : this.difftool(file); }
+        else if (command === "focus") this.arrive(cx);
         else if (command === "close") this.closePanel();
         else if (this.handle.is_focused() && Object.values(KEYS).includes(command)) { this.act(command, cx); cx.notify(); }
       }
@@ -150,6 +156,7 @@ export default class Changes extends View {
       case "edit": this.edit(file); break;
       case "diff": this.diff(file); break;
       case "tab": this.diff(file, true); break;
+      case "difftool": this.difftool(file); break;
       case "hide": if (this.open) this.pick(this.open, cx); break;
       case "back": {
         const pane = focused()?.pane;
@@ -164,7 +171,15 @@ export default class Changes extends View {
   edit(file, tab) {
     if (!file || file.status === "D" || !this.root || this.on) return;
     if (tab) run("tab.new", { name: file.path.split("/").pop(), folder: this.root, argv: ["nvim", file.path] });
-    else run("terminal.open", { argv: ["nvim", file.path], folder: this.root, place: "right" });
+    else this.openBeside(["nvim", file.path]);
+  }
+
+  // A new pane right of the focused one. That fails while a pinned terminal (a layout terminal
+  // block, no pane) has the keyboard: then right of the shown tab's first pane.
+  openBeside(argv) {
+    const f = focused(), first = !f?.pane && panes().find((p) => p.tab === f?.tab);
+    if (first) run("pane.focus", { pane: first.pane });
+    run("terminal.open", { argv, folder: this.root, place: "right" });
   }
 
   // HEAD and the working copy side by side in nvim (git's own nvimdiff, whatever diff.tool says).
@@ -174,7 +189,16 @@ export default class Changes extends View {
     if (file.fresh || !this.hasHead) { if (file.status !== "D") this.edit(file, tab); return; }
     const argv = ["git", "difftool", "-y", "--tool=nvimdiff", "HEAD", "--", file.path];
     if (tab) run("tab.new", { name: `diff ${file.path.split("/").pop()}`, folder: this.root, argv });
-    else run("terminal.open", { argv, folder: this.root, place: "right" });
+    else this.openBeside(argv);
+  }
+
+  // A double-click: git's own diff tool (diff.tool, as lazygit's ctrl+t), HEAD against the working
+  // copy as the panel shows it (no HEAD yet: what's staged). A file git doesn't track has no diff.
+  // git removes its temporary copies when the tool exits, so it's left running in the background.
+  difftool(file) {
+    if (!file || file.fresh || !this.root) return;
+    const script = 'nohup git difftool --no-prompt "$1" -- "$2" >/dev/null 2>&1 &';
+    exec("sh", ["-c", script, "difftool", this.hasHead ? "HEAD" : "--cached", file.path], { cwd: this.root, on: this.on }).catch(() => null);
   }
 
   watch(root, cx) {
@@ -271,6 +295,19 @@ export default class Changes extends View {
     this.diffWidth = Math.max(300, ...this.rows.map(row => (row.text.length + 1) * 7 + 50));
   }
 
+  // A click shows a file's diff, a double-click opens git difftool. Clicking the shown file hides
+  // its diff, but only once no second click came (a double-click's first click leaves it shown).
+  click(file, count, cx) {
+    this.hiding = null;
+    if (count >= 2) return this.difftool(file);
+    if (this.open !== file.path) return this.pick(file.path, cx);
+    const hiding = this.hiding = {};
+    cx.timer.after(450, (cx) => {
+      if (this.hiding !== hiding || this.open !== file.path) return;
+      this.hiding = null; this.pick(file.path, cx); cx.notify();
+    });
+  }
+
   pick(path, cx) {
     this.open = this.open === path ? null : path; this.setLines([]); this.note = null;
     this.closed = !this.open;
@@ -327,7 +364,11 @@ export default class Changes extends View {
         .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().track_scroll(this.scroll).p(6).children(this.files.map((f) => {
         const parts = f.path.split("/"), name = parts.pop();
         return h_flex().id(`change-${f.path}`).h(28).flex_none().px(8).gap(8).items_center().rounded(7).cursor_pointer().when(this.open === f.path, (e) => e.bg(t.selected))
-          .border_1().border_color(this.open === f.path && this.handle.is_focused() && !this.typing ? t.accent : "#00000000").hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.pick(f.path, cx))
+          .border_1().border_color(this.open === f.path && this.handle.is_focused() && !this.typing ? t.accent : "#00000000").hover((s) => s.bg(t.hover)).on_click((e, cx) => this.click(f, e.click_count, cx))
+          .on_mouse_down("right", (_e, cx) => {
+            if (this.open !== f.path) this.pick(f.path, cx);
+            openOverlay({ mod: "my-changes-menu", props: { path: f.path, nvim: !this.on, difftool: !f.fresh }, kind: "popup", width: 220, height: 104 });
+          })
           .child(div().w(14).text_size(11).text_color(f.status === "A" ? t.ansi2 : f.status === "D" ? t.ansi1 : f.status === "U" ? t.ansi1 : t.blocked).child(f.status))
           .child(h_flex().flex_1().min_w(0).child(div().text_color(t.dim).truncate().child(parts.length ? parts.join("/") + "/" : "")).child(div().max_w(260).min_w(0).truncate().child(name)))
           .when(f.add > 0, (e) => e.child(div().text_size(11).text_color(t.ansi2).child(`+${f.add}`))).when(f.del > 0, (e) => e.child(div().text_size(11).text_color(t.ansi1).child(`−${f.del}`)));
@@ -336,6 +377,7 @@ export default class Changes extends View {
       .when(this.limited, el => el.child(div().px(12).py(4).text_size(11).text_color(t.dim).child("Showing the first 1,000 changed files")))
       .child(div().flex_1().min_h(0).relative().font_family(settings().font_family ?? "JetBrains Mono").text_size(11)
         .child(div().id("changes-diff-x").size_full().overflow_x_scrollbar()
+          .on_click((e) => { if (e.click_count >= 2) this.difftool(this.files.find((f) => f.path === this.open)); })
           .child(div().w_full().min_w(this.diffWidth).h_full().child(v_virtual_list("changes-diff", this.rows.length, 20, (i) => String(i),
             (range) => this.rows.slice(range.start, range.end).map((row) => this.diffRow(row, t))).size_full())))
         .child(Scrollbar.vertical("changes-diff").viewport_from_layout().absolute().inset_0())

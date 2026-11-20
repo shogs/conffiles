@@ -1,19 +1,13 @@
-// A lazy file browser for the focused pane's folder, with bounded read-only previews.
+// A lazy file browser for the shown space's folder (see location), with bounded read-only previews.
 // With the keyboard (pane.go onto it, or my-files.focus): j/k or arrows move, l expands a folder or previews a file
 // (j/k scroll a line, ctrl-d/ctrl-u half a page, g/G to an end, h/Esc go back),
 // h collapses it (or its parent), Enter opens a file in nvim or toggles a folder, Shift-Enter opens
-// the file in nvim in a new tab, Esc goes back.
+// the file in nvim in a new tab, Esc goes back. Mouse: click selects, double-click previews,
+// right-click offers nvim or the preview.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window, run, nextCommand, props, shared, setShared } from "herdr";
+import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window, run, nextCommand, props, shared, setShared, openOverlay } from "herdr";
 
-function location() {
-  const space = spaces().find(s => s.active), f = focused();
-  const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
-  const on = f?.pane === null ? (f.terminal?.includes("/") ? f.terminal.split("/")[0] : null) : space?.machine ?? null;
-  return { cwd: pane?.cwd || f?.cwd || space?.folder, on, space: space?.id };
-}
-const key = () => JSON.stringify(location());
 const PER_FOLDER = 500, TOTAL = 5000;
 // A file preview's line height (px) and longest file it shows.
 const LINE = 18, MAX_CHARS = 400000;
@@ -52,6 +46,7 @@ async function directory(path, on) {
 export default class Files extends View {
   init(_props, cx) {
     this.saved = new Map();
+    this.linked = {}; this.asking = new Set();
     this.entries = new Map(); this.folders = new Set(); this.pending = new Set(); this.marks = {};
     // Keyboard: the drawn rows ({ path, dir, parent }) and the one the cursor is on.
     this.handle = cx.focus_handle();
@@ -61,7 +56,10 @@ export default class Files extends View {
     cx.spawn(async cx => {
       for (;;) {
         const command = String(await nextCommand()).replace(/^my-files\./, "");
-        if (command === "focus") this.arrive(cx);
+        // nvim:<path> / preview:<path> (the right-click menu, mods/my-files-menu).
+        const menu = /^(nvim|preview):(.*)$/s.exec(command);
+        if (menu) { this.cursor = menu[2]; if (menu[1] === "nvim") this.edit(menu[2]); else this.show(menu[2], cx); cx.notify(); }
+        else if (command === "focus") this.arrive(cx);
         else if (command === "close") this.closePanel();
         else if (this.handle.is_focused() && Object.values(KEYS).includes(command)) { this.act(command, cx); cx.notify(); }
       }
@@ -75,10 +73,40 @@ export default class Files extends View {
     cx.timer.every(10000, cx => this.refresh(cx));
   }
 
+  // Where the shown space is, as my-changes has it: its folder when that's a linked git worktree
+  // (a worktree space), else its first terminal's live folder. Focusing another pane or a pinned
+  // terminal doesn't move it. `check`: not known yet.
+  location() {
+    const space = spaces().find(s => s.active);
+    if (!space) return { cwd: null, on: null };
+    const on = space.machine ?? null, folder = space.folder || null;
+    const linked = folder ? this.linked[JSON.stringify([on, folder])] : false;
+    if (linked === undefined) return { cwd: null, on, space: space.id, check: folder };
+    if (linked) return { cwd: folder, on, space: space.id };
+    const tabs = new Set(space.tabs.map(t => t.id));
+    return { cwd: panes().find(p => tabs.has(p.tab) && p.cwd)?.cwd || folder, on, space: space.id };
+  }
+
+  // A linked worktree's git dir differs from its repo's common one. Asked once per folder.
+  checkWorktree(on, folder, cx) {
+    const k = JSON.stringify([on, folder]);
+    if (k in this.linked || this.asking.has(k)) return;
+    this.asking.add(k);
+    cx.spawn(async cx => {
+      try {
+        const r = await exec("git", ["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"], { cwd: folder, on });
+        const [dir, common] = r.stdout.trim().split("\n");
+        this.linked[k] = r.code === 0 && dir !== common;
+      } catch { this.linked[k] = false; }
+      finally { this.asking.delete(k); cx.notify(); }
+    });
+  }
+
   // While the tree has the keyboard it stays on the folder it showed.
   here() {
     if (this.context && this.handle?.is_focused()) return { cwd: this.context.cwd, on: this.context.on, key: this.context.key };
-    return { ...location(), key: key() };
+    const where = this.location();
+    return { ...where, key: JSON.stringify(where) };
   }
 
   // Its open key or ctrl-a x while it has the keyboard (keys.json mod:my-files): close this panel
@@ -171,7 +199,8 @@ export default class Files extends View {
   }
 
   refresh(cx) {
-    const { cwd, on, key: next } = this.here();
+    const { cwd, on, check, key: next } = this.here();
+    if (check) this.checkWorktree(on, check, cx);
     if (next !== this.context?.key) {
       if (this.context) this.saved.set(this.context.key, { folders: this.folders, file: this.file });
       const saved = this.saved.get(next);
@@ -228,9 +257,13 @@ export default class Files extends View {
     cx.notify();
   }
 
-  // A click opens the file in nvim, in a new pane right of the focused one; right-click previews it here.
+  // Enter (or Neovim in the right-click menu) opens the file in nvim, in a new pane right of the focused
+  // one; while a pinned terminal (a layout terminal block, no pane) has the keyboard, where that
+  // fails, right of the shown tab's first pane.
   edit(path) {
     if (!this.root) return;
+    const f = focused(), first = !f?.pane && panes().find(p => p.tab === f?.tab);
+    if (first) run("pane.focus", { pane: first.pane });
     run("terminal.open", { argv: ["nvim", path], folder: this.root, place: "right" });
   }
 
@@ -297,8 +330,19 @@ export default class Files extends View {
       this.nav.push({ path, dir: entry.dir, parent: prefix });
       out.push(h_flex().id(`file-${path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer().hover(s => s.bg(t.hover))
         .border_1().border_color(here ? t.accent : "#00000000").when(here, el => el.bg(t.selected))
-        .on_click((_e, cx) => entry.dir ? this.toggle(path, cx) : this.edit(path))
-        .on_mouse_down("right", (_e, cx) => { if (!entry.dir) this.show(path, cx); })
+        // A click selects (a folder also opens or closes, once per double-click); a double-click
+        // previews a file here; right-click offers nvim or the preview (mods/my-files-menu).
+        .on_click((e, cx) => {
+          this.cursor = path; this.handle.focus(); this.hadFocus = true;
+          if (entry.dir) { if (e.click_count === 1) this.toggle(path, cx); }
+          else if (e.click_count >= 2) this.show(path, cx);
+          cx.notify();
+        })
+        .on_mouse_down("right", (_e, cx) => {
+          if (entry.dir) return;
+          this.cursor = path; this.handle.focus(); this.hadFocus = true; cx.notify();
+          openOverlay({ mod: "my-files-menu", props: { path }, kind: "popup", width: 200, height: 104 });
+        })
         .child(entry.dir ? svg(`mods/my-files/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim) : div().w(12).flex_none())
         .child(svg(`mods/my-files/${entry.dir ? "folder" : "file"}.svg`).size(14).flex_none().text_color(t.muted))
         .child(div().flex_1().min_w(0).truncate().child(entry.name))
