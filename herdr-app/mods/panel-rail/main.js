@@ -1,6 +1,7 @@
 // The side panel's buttons as a strip down the window's right edge: an icon and a
-// sideways label per panel (Files, Changes). Click to show that panel, again to hide it.
-// Like the tab bar it replaces, it remembers each space's panel and restores it on switching.
+// sideways label per panel (Files, Changes). Click to show that panel, again to hide it; right-click
+// to choose the side it opens on (left of the tabs or right). Open panels on one side stack.
+// Like the tab bar it replaces, it remembers each space's open panels and restores them on switching.
 // panel-rail.files and panel-rail.changes (keys) open that panel and give it the keyboard;
 // panel-rail.spaces shows the Spaces sidebar and gives it the keyboard.
 // It also shows each space's pinned view (mods/my-pinned-panes, pins.js) on switching, and
@@ -13,7 +14,7 @@
 // (ctrl-d) refuse to close a space's last pane while it has pins (blocksClose).
 import { View, div, svg } from "gpui-kit";
 import { v_flex } from "gpui-base";
-import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes, exec, notify } from "herdr";
+import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes, exec, notify, openOverlay } from "herdr";
 import { applyView, toggle as togglePinned, toggleMax, toggleZoom, split, close, pin, unpin, visible, pollAgents, reveal, toggleGlobal, zoomOf, regroup, groupOf, blocksClose, orphans, orphansHeight, sync as syncPinned, show as showPinned, move as movePin } from "./pins.js";
 
 function find(node, id) {
@@ -26,23 +27,35 @@ function find(node, id) {
 }
 
 // The labels are outlined text turned sideways (no rotated text in mods), tinted like the icons.
+// Each panel has a block "<id>-left" and "<id>-right" in glass.json's panel-left/panel-right
+// columns, in this order: open panels on the same side stack in it.
 const PANELS = [
-  { id: "files", icon: "mods/files/file.svg", label: "files", w: 12.33, h: 26.79 },
-  { id: "changes", icon: "mods/changes/changes.svg", label: "changes", w: 12.33, h: 50.86 },
+  { id: "files", mod: "my-files", icon: "mods/files/file.svg", label: "files", w: 12.33, h: 26.79 },
+  { id: "changes", mod: "my-changes", icon: "mods/changes/changes.svg", label: "changes", w: 12.33, h: 50.86 },
 ];
+
+// The side a panel opens on: shared "panels.side" (kept across restarts, set from the rail's
+// right-click menu and the panels' own ⇄), right unless set.
+const sideOf = (id) => shared("panels.side")?.[id] === "left" ? "left" : "right";
 
 export default class PanelRail extends View {
   init(_props, cx) {
     // The pinned panes' agent status, for my-agents and my-office (see pins.js).
     cx.timer.every(2000, (cx) => pollAgents(cx));
-    this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
+    // Per space, the panels open there (an older build kept one id or null).
+    const saved = JSON.parse(localStorage.getItem("panels") ?? "{}");
+    this.panels = Object.fromEntries(Object.entries(saved).map(([k, v]) => [k, Array.isArray(v) ? v : v ? [v] : []]));
     cx.spawn(async (cx) => {
       for (;;) {
         const command = String(await nextCommand()).replace(/^panel-rail\./, "");
         // A reloaded build's loop ends here (at its next cx use) instead of acting too.
         cx.notify();
-        if (command === "files") this.focusPanel("files", "my-files", cx);
-        else if (command === "changes") this.focusPanel("changes", "my-changes", cx);
+        const panel = PANELS.find(p => command.replace(/^(open|close|side)-/, "") === p.id);
+        if (panel && command === panel.id) this.focusPanel(panel, cx);
+        // side-<id> (keys): open it on the other side from now on.
+        else if (panel && command.startsWith("side-")) setShared("panels.side", { ...shared("panels.side"), [panel.id]: sideOf(panel.id) === "left" ? "right" : "left" });
+        // open-<id> / close-<id>: from the side menu and the panels' own close.
+        else if (panel) { this.setOpen(panel.id, command.startsWith("open-")); cx.notify(); }
         else if (command === "spaces") this.focusSpaces(cx);
         else if (command === "pinned") this.pinnedKey(cx);
         else if (command === "pin") this.pinFocused(cx);
@@ -170,11 +183,6 @@ export default class PanelRail extends View {
     if (direction === "up" || direction === "down") movePin(f.terminal, direction === "down" ? 1 : -1);
   }
 
-  open(id) {
-    run("layout.select", { stack: "panel-body", child: id });
-    run("layout.show", { id: "panel" });
-  }
-
   // The big office strip above the panes; the sidebar office stays (my-office's buttons too).
   toggleOfficeMax() {
     const max = find(layout(), "office-max");
@@ -195,37 +203,39 @@ export default class PanelRail extends View {
   }
 
   // A hidden panel's mod takes no commands: show it, then ask it for the keyboard until it has started.
-  focusPanel(id, mod, cx) {
-    this.open(id);
-    for (const ms of [0, 120, 300]) cx.timer.after(ms, () => run(`${mod}.focus`));
+  focusPanel(panel, cx) {
+    this.setOpen(panel.id, true);
+    cx.notify();
+    for (const ms of [0, 120, 300]) cx.timer.after(ms, () => run(`${panel.mod}.focus`));
   }
 
-  // The side panel is remembered per space: switching shows that space's choice
-  // (closed if it never had one), and opening or closing it records it.
-  syncPanel(space, panel, body, enabled) {
-    if (!space || !panel) return;
-    const now = panel.hidden ? null : body?.active ?? null;
-    if (space.id !== this.space) {
-      const first = this.space === undefined;
-      this.space = space.id; this.pending = null;
-      if (!(first && !(space.id in this.panels))) {
-        const stored = this.panels[space.id] ?? null, want = enabled.includes(stored) ? stored : null;
-        if (want !== now) {
-          this.pending = { want, until: Date.now() + 1000 };
-          if (want) { run("layout.select", { stack: "panel-body", child: want }); run("layout.show", { id: "panel" }); }
-          else run("layout.hide", { id: "panel" });
-          return;
-        }
-      }
-    }
-    // Until the restore lands (or something else won), the old state isn't a choice.
-    if (this.pending) {
-      if (this.pending.want !== now && Date.now() < this.pending.until) return;
-      this.pending = null;
-    }
-    if (this.panels[space.id] === now) return;
-    this.panels[space.id] = now;
+  // The panels open in the shown space, remembered per space (none until it has had one).
+  opened() {
+    return this.panels[this.space] ?? [];
+  }
+
+  setOpen(id, open) {
+    if (!this.space) return;
+    const now = this.opened();
+    this.panels[this.space] = PANELS.map(p => p.id).filter(x => x === id ? open : now.includes(x));
     localStorage.setItem("panels", JSON.stringify(this.panels));
+  }
+
+  // Each open panel's block shows on its side, the others hide; a side with none open hides.
+  // Runs on every render (layout and shared changes cause one), so it only sends what differs.
+  applyPanels(root, enabled) {
+    const open = this.opened().filter(id => enabled.includes(id));
+    for (const side of ["left", "right"]) {
+      const column = find(root, `panel-${side}`);
+      if (!column) continue;
+      let any = false;
+      for (const p of PANELS) {
+        const want = open.includes(p.id) && sideOf(p.id) === side, node = find(column, `${p.id}-${side}`);
+        any ||= want;
+        if (node && Boolean(node.hidden) === want) run(want ? "layout.show" : "layout.hide", { id: node.id });
+      }
+      if (Boolean(column.hidden) === any) run(any ? "layout.show" : "layout.hide", { id: column.id });
+    }
   }
 
   // Pins whose space closed (pins.js orphans): the pinned view's "pinned-orphans" block follows
@@ -247,7 +257,7 @@ export default class PanelRail extends View {
 
   render() {
     const t = theme();
-    const root = layout(), panel = find(root, "panel"), body = find(root, "panel-body");
+    const root = layout();
     const enabled = shared("workspace.panels") ?? ["files", "changes"];
     const space = spaces().find(s => s.active);
     // The tab pane last used, for going right from the pinned view, and the pinned pane last used
@@ -256,20 +266,23 @@ export default class PanelRail extends View {
     this.remember(f);
     if (f?.pane) this.lastPane = f.pane;
     else if (f?.terminal && f.terminal !== shared("pinned.last") && visible().some(x => x.terminal === f.terminal)) setShared("pinned.last", f.terminal);
-    this.syncPanel(space, panel, body, enabled);
+    this.space = space?.id;
+    this.applyPanels(root, enabled);
     reveal();
     regroup();
     this.watchOrphans(root);
     // A worktree space shares its main checkout's pinned view: the view changes with the group.
     if (space && groupOf(space.id) !== this.pinnedSpace) { this.pinnedSpace = groupOf(space.id); applyView(space.id); }
     const button = (p) => {
-      const on = panel && !panel.hidden && body?.active === p.id;
+      const on = this.opened().includes(p.id);
       return v_flex().id(`rail-${p.id}`).w(30).py(10).gap(8).flex_none().items_center().rounded(7)
         .bg(on ? t.selected : t.chrome).text_color(on ? t.foreground : t.muted)
         .hover(s => s.bg(t.hover).text_color(t.foreground))
-        .on_click(() => {
-          if (on) run("layout.hide", { id: "panel" });
-          else { run("layout.select", { stack: "panel-body", child: p.id }); run("layout.show", { id: "panel" }); }
+        .on_click((_e, cx) => { this.setOpen(p.id, !on); cx.notify(); })
+        // Right-click: which side it opens on (mods/panel-side-menu).
+        .on_mouse_down("right", (_e, cx) => {
+          cx.stop_propagation();
+          openOverlay({ mod: "panel-side-menu", props: { panel: p.id, label: p.label[0].toUpperCase() + p.label.slice(1) }, kind: "popup", width: 190, height: 112 });
         })
         .child(svg(p.icon).size(14))
         .child(svg(`mods/panel-rail/label-${p.label}.svg`).w(p.w).h(p.h));

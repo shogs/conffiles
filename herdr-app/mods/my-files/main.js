@@ -5,7 +5,7 @@
 // the file in nvim in a new tab, Esc goes back.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window, run, nextCommand } from "herdr";
+import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window, run, nextCommand, props, shared, setShared } from "herdr";
 
 function location() {
   const space = spaces().find(s => s.active), f = focused();
@@ -62,7 +62,7 @@ export default class Files extends View {
       for (;;) {
         const command = String(await nextCommand()).replace(/^my-files\./, "");
         if (command === "focus") this.arrive(cx);
-        else if (command === "close") this.close();
+        else if (command === "close") this.closePanel();
         else if (this.handle.is_focused() && Object.values(KEYS).includes(command)) { this.act(command, cx); cx.notify(); }
       }
     });
@@ -81,12 +81,19 @@ export default class Files extends View {
     return { ...location(), key: key() };
   }
 
-  // Its open key or ctrl-a x while it has the keyboard (keys.json mod:my-files): hide the side panel,
-  // keyboard back to the focused pane.
-  close() {
+  // Its open key or ctrl-a x while it has the keyboard (keys.json mod:my-files): close this panel
+  // (panel-rail decides what shows), keyboard back to the focused pane.
+  // Not close(): Herdr calls that when the block goes (quit, layout switch).
+  closePanel() {
     const pane = focused()?.pane;
-    run("layout.hide", { id: "panel" });
+    run("panel-rail.close-files");
     if (pane) run("pane.focus", { pane });
+  }
+
+  // The header's ⇄: open on the other side of the tabs from now on (panel-rail moves it).
+  flip() {
+    const side = props()?.side === "left" ? "right" : "left";
+    setShared("panels.side", { ...shared("panels.side"), files: side });
   }
 
   arrive(cx) {
@@ -313,7 +320,9 @@ export default class Files extends View {
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .when(Boolean(this.file), el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null); cx.notify(); }).child("←")))
         .child(div().font_semibold().child("Files"))
-        .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? "")))
+        .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? ""))
+        .child(div().id("files-side").flex_none().px(4).rounded(4).cursor_pointer().text_color(t.muted).hover(s => s.bg(t.hover).text_color(t.foreground))
+          .on_click(() => this.flip()).child("⇄")))
       .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(this.scroll).p(6).children(this.rows("", 0, [], t))
         .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "Loading files…" : this.root ? "No files" : "No folder"))))
         .when(this.limited, el => el.child(div().p(8).text_size(11).text_color(t.dim).child("File list limited to 500 entries per folder and 5,000 total")))))

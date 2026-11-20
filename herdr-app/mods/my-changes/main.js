@@ -5,7 +5,7 @@
 // (Shift-Enter: in a new tab), l opens the file to edit, h hides the diff, Esc goes back.
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list, ScrollHandle } from "gpui-base";
-import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, run, nextCommand } from "herdr";
+import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, run, nextCommand, props, shared, setShared } from "herdr";
 
 // The list's keys while it has the keyboard, and what each does (see act).
 const KEYS = {
@@ -52,7 +52,7 @@ export default class Changes extends View {
       for (;;) {
         const command = String(await nextCommand()).replace(/^my-changes\./, "");
         if (command === "focus") this.arrive(cx);
-        else if (command === "close") this.close();
+        else if (command === "close") this.closePanel();
         else if (this.handle.is_focused() && Object.values(KEYS).includes(command)) { this.act(command, cx); cx.notify(); }
       }
     });
@@ -101,12 +101,19 @@ export default class Changes extends View {
     return { ...where, key: JSON.stringify(where) };
   }
 
-  // Its open key or ctrl-a x while it has the keyboard (keys.json mod:my-changes): hide the side panel,
-  // keyboard back to the focused pane.
-  close() {
+  // Its open key or ctrl-a x while it has the keyboard (keys.json mod:my-changes): close this panel
+  // (panel-rail decides what shows), keyboard back to the focused pane.
+  // Not close(): Herdr calls that when the block goes (quit, layout switch).
+  closePanel() {
     const pane = focused()?.pane;
-    run("layout.hide", { id: "panel" });
+    run("panel-rail.close-changes");
     if (pane) run("pane.focus", { pane });
+  }
+
+  // The header's ⇄: open on the other side of the tabs from now on (panel-rail moves it).
+  flip() {
+    const side = props()?.side === "left" ? "right" : "left";
+    setShared("panels.side", { ...shared("panels.side"), changes: side });
   }
 
   arrive(cx) {
@@ -312,7 +319,9 @@ export default class Changes extends View {
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().font_semibold().child("Changes"))
         .child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(`${this.files.length} files`))
-        .child(div().flex_1()).child(div().text_size(11).text_color(t.ansi2).child(`+${add}`)).child(div().text_size(11).text_color(t.ansi1).child(`−${del}`)))
+        .child(div().flex_1()).child(div().text_size(11).text_color(t.ansi2).child(`+${add}`)).child(div().text_size(11).text_color(t.ansi1).child(`−${del}`))
+        .child(div().id("changes-side").flex_none().px(4).rounded(4).cursor_pointer().text_color(t.muted).hover(s => s.bg(t.hover).text_color(t.foreground))
+          .on_click(() => this.flip()).child("⇄")))
       // overflow_y_scrollbar() wraps the list, so its flex sizing never reached the panel's layout.
       .child(div().flex_1().min_h(44).max_h(this.files.length * 28 + 12).relative().border_b(1).border_color(t.border)
         .child(v_flex().id("changes-list").absolute().inset_0().overflow_y_scroll().track_scroll(this.scroll).p(6).children(this.files.map((f) => {

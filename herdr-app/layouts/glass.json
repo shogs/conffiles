@@ -1172,6 +1172,41 @@
               "type": "row",
               "children": [
                 {
+                  "id": "panel-left",
+                  "type": "column",
+                  "size": {
+                    "px": 320
+                  },
+                  "min": 220,
+                  "max": 900,
+                  "gap": 8,
+                  "hidden": true,
+                  "children": [
+                    {
+                      "id": "files-left",
+                      "type": "block",
+                      "hidden": true,
+                      "content": {
+                        "mod": "my-files",
+                        "props": {
+                          "side": "left"
+                        }
+                      }
+                    },
+                    {
+                      "id": "changes-left",
+                      "type": "block",
+                      "hidden": true,
+                      "content": {
+                        "mod": "my-changes",
+                        "props": {
+                          "side": "left"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
                   "id": "main",
                   "type": "block",
                   "content": {
@@ -1201,36 +1236,39 @@
                   }
                 },
                 {
-                  "id": "panel",
+                  "id": "panel-right",
                   "type": "column",
-                  "children": [
-                    {
-                      "id": "panel-body",
-                      "type": "stack",
-                      "children": [
-                        {
-                          "id": "files",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-files"
-                          }
-                        },
-                        {
-                          "id": "changes",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-changes"
-                          }
-                        }
-                      ],
-                      "active": "changes"
-                    }
-                  ],
                   "size": {
                     "px": 389
                   },
-                  "min": 280,
-                  "max": 900
+                  "min": 220,
+                  "max": 900,
+                  "gap": 8,
+                  "hidden": false,
+                  "children": [
+                    {
+                      "id": "files-right",
+                      "type": "block",
+                      "hidden": true,
+                      "content": {
+                        "mod": "my-files",
+                        "props": {
+                          "side": "right"
+                        }
+                      }
+                    },
+                    {
+                      "id": "changes-right",
+                      "type": "block",
+                      "hidden": true,
+                      "content": {
+                        "mod": "my-changes",
+                        "props": {
+                          "side": "right"
+                        }
+                      }
+                    }
+                  ]
                 }
               ],
               "padding": 8,
