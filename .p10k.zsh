@@ -1642,30 +1642,55 @@
   # really need it.
   typeset -g POWERLEVEL9K_DISABLE_HOT_RELOAD=true
 
-  # macOS in light mode: a pale band, and darker text colors that read on it.
-  # Checked once per shell, so shells opened before a switch keep their colors.
-  if [[ $OSTYPE == darwin* && $(defaults read -g AppleInterfaceStyle 2>/dev/null) != Dark ]]; then
-    typeset -g _p10k_light=1
-    typeset -g POWERLEVEL9K_BACKGROUND=254
-    typeset -g POWERLEVEL9K_VCS_VISUAL_IDENTIFIER_COLOR=28
-    typeset -g POWERLEVEL9K_OS_ICON_FOREGROUND=236
-    typeset -g POWERLEVEL9K_DIR_FOREGROUND=24
-    typeset -g POWERLEVEL9K_DIR_SHORTENED_FOREGROUND=60
-    typeset -g POWERLEVEL9K_DIR_ANCHOR_FOREGROUND=25
-    typeset -g POWERLEVEL9K_VCS_CLEAN_FOREGROUND=28
-    typeset -g POWERLEVEL9K_VCS_UNTRACKED_FOREGROUND=28
-    typeset -g POWERLEVEL9K_VCS_MODIFIED_FOREGROUND=130
-    typeset -g POWERLEVEL9K_STATUS_OK_FOREGROUND=28
-    typeset -g POWERLEVEL9K_STATUS_OK_PIPE_FOREGROUND=28
-    typeset -g POWERLEVEL9K_COMMAND_EXECUTION_TIME_FOREGROUND=242
-    typeset -g POWERLEVEL9K_BACKGROUND_JOBS_FOREGROUND=30
-    typeset -g POWERLEVEL9K_TIME_FOREGROUND=23
-  fi
-
   # If p10k is already loaded, reload configuration.
   # This works even with POWERLEVEL9K_DISABLE_HOT_RELOAD=true.
   (( ! $+functions[p10k] )) || p10k reload
 }
+
+# Follow macOS light/dark mode. Light gets a pale band and darker text colors that read on it;
+# dark keeps the values set above. Checked when the shell starts, and in open shells before each
+# prompt once macOS's global preferences file (where the mode is saved) has changed.
+if [[ $OSTYPE == darwin* ]]; then
+  typeset -gA _p10k_light_colors=(
+    BACKGROUND 254  VCS_VISUAL_IDENTIFIER_COLOR 28  OS_ICON_FOREGROUND 236
+    DIR_FOREGROUND 24  DIR_SHORTENED_FOREGROUND 60  DIR_ANCHOR_FOREGROUND 25
+    VCS_CLEAN_FOREGROUND 28  VCS_UNTRACKED_FOREGROUND 28  VCS_MODIFIED_FOREGROUND 130
+    STATUS_OK_FOREGROUND 28  STATUS_OK_PIPE_FOREGROUND 28  COMMAND_EXECUTION_TIME_FOREGROUND 242
+    BACKGROUND_JOBS_FOREGROUND 30  TIME_FOREGROUND 23
+  )
+
+  # Sets the colors for the mode macOS is in; fails if they're already set for it.
+  function _p10k_apply_appearance() {
+    emulate -L zsh
+    local light=0 k
+    [[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == Dark ]] || light=1
+    [[ $light == $_p10k_light ]] && return 1
+    # The dark values are the ones set above, kept before the first switch.
+    if (( ! ${+_p10k_dark_colors} )); then
+      typeset -gA _p10k_dark_colors
+      for k in ${(k)_p10k_light_colors}; do _p10k_dark_colors[$k]=${(P)${:-POWERLEVEL9K_$k}}; done
+    fi
+    local -A colors
+    if (( light )); then colors=("${(@kv)_p10k_light_colors}"); else colors=("${(@kv)_p10k_dark_colors}"); fi
+    for k in ${(k)colors}; do typeset -g POWERLEVEL9K_$k=$colors[$k]; done
+    typeset -g _p10k_light=$light  # also read by my_git_formatter
+  }
+
+  zmodload -F zsh/stat b:zstat
+  function _p10k_follow_appearance() {
+    local -a m
+    zstat -A m +mtime ~/Library/Preferences/.GlobalPreferences.plist 2>/dev/null || return
+    [[ $m[1] == $_p10k_prefs_mtime ]] && return
+    typeset -g _p10k_prefs_mtime=$m[1]
+    _p10k_apply_appearance && (( $+functions[p10k] )) && p10k reload
+  }
+
+  # Sourcing this again (source ~/.zshrc) has just reset the colors above to dark.
+  unset _p10k_light _p10k_dark_colors _p10k_prefs_mtime
+  _p10k_follow_appearance
+  # Before p10k's own precmd, so the prompt it draws has the new colors.
+  precmd_functions=(_p10k_follow_appearance ${precmd_functions:#_p10k_follow_appearance})
+fi
 
 # Tell `p10k configure` which file it should overwrite.
 typeset -g POWERLEVEL9K_CONFIG_FILE=${${(%):-%x}:a}
