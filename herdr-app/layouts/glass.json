@@ -142,84 +142,6 @@
               "type": "column",
               "children": [
                 {
-                  "id": "pinned-card-t1k",
-                  "type": "column",
-                  "children": [
-                    {
-                      "id": "pinned-head-t1k",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-panes",
-                        "props": {
-                          "terminal": "t1k"
-                        }
-                      },
-                      "size": {
-                        "px": 30
-                      }
-                    },
-                    {
-                      "id": "pinned-mid-t1k",
-                      "type": "row",
-                      "children": [
-                        {
-                          "id": "pinned-left-t1k",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t1k",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        },
-                        {
-                          "id": "pinned-term-t1k",
-                          "type": "block",
-                          "content": {
-                            "terminal": "t1k"
-                          },
-                          "background": "canvas"
-                        },
-                        {
-                          "id": "pinned-right-t1k",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t1k",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        }
-                      ],
-                      "resizable": false
-                    },
-                    {
-                      "id": "pinned-foot-t1k",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-frame",
-                        "props": {
-                          "terminal": "t1k",
-                          "edge": "bottom"
-                        }
-                      },
-                      "size": {
-                        "px": 10
-                      }
-                    }
-                  ],
-                  "background": "#00000000",
-                  "resizable": false
-                },
-                {
                   "id": "pinned-card-t56",
                   "type": "column",
                   "children": [
@@ -627,87 +549,6 @@
                   },
                   "background": "#00000000",
                   "resizable": false
-                },
-                {
-                  "id": "pinned-card-t7g",
-                  "type": "column",
-                  "children": [
-                    {
-                      "id": "pinned-head-t7g",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-panes",
-                        "props": {
-                          "terminal": "t7g"
-                        }
-                      },
-                      "size": {
-                        "px": 30
-                      }
-                    },
-                    {
-                      "id": "pinned-mid-t7g",
-                      "type": "row",
-                      "children": [
-                        {
-                          "id": "pinned-left-t7g",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t7g",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        },
-                        {
-                          "id": "pinned-term-t7g",
-                          "type": "block",
-                          "content": {
-                            "terminal": "t7g"
-                          },
-                          "background": "canvas"
-                        },
-                        {
-                          "id": "pinned-right-t7g",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t7g",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        }
-                      ],
-                      "resizable": false
-                    },
-                    {
-                      "id": "pinned-foot-t7g",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-frame",
-                        "props": {
-                          "terminal": "t7g",
-                          "edge": "bottom"
-                        }
-                      },
-                      "size": {
-                        "px": 10
-                      }
-                    }
-                  ],
-                  "size": {
-                    "weight": 1.688910961151123
-                  },
-                  "background": "#00000000",
-                  "resizable": false
                 }
               ],
               "gap": 8
@@ -802,84 +643,6 @@
               "type": "column",
               "children": [
                 {
-                  "id": "pinned-card-t85",
-                  "type": "column",
-                  "children": [
-                    {
-                      "id": "pinned-head-t85",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-panes",
-                        "props": {
-                          "terminal": "t85"
-                        }
-                      },
-                      "size": {
-                        "px": 30
-                      }
-                    },
-                    {
-                      "id": "pinned-mid-t85",
-                      "type": "row",
-                      "children": [
-                        {
-                          "id": "pinned-left-t85",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t85",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        },
-                        {
-                          "id": "pinned-term-t85",
-                          "type": "block",
-                          "content": {
-                            "terminal": "t85"
-                          },
-                          "background": "canvas"
-                        },
-                        {
-                          "id": "pinned-right-t85",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t85",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        }
-                      ],
-                      "resizable": false
-                    },
-                    {
-                      "id": "pinned-foot-t85",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-frame",
-                        "props": {
-                          "terminal": "t85",
-                          "edge": "bottom"
-                        }
-                      },
-                      "size": {
-                        "px": 10
-                      }
-                    }
-                  ],
-                  "background": "#00000000",
-                  "resizable": false
-                },
-                {
                   "id": "pinned-card-t89",
                   "type": "column",
                   "children": [
@@ -965,16 +728,16 @@
               "type": "column",
               "children": [
                 {
-                  "id": "pinned-card-t75",
+                  "id": "pinned-card-t9d",
                   "type": "column",
                   "children": [
                     {
-                      "id": "pinned-head-t75",
+                      "id": "pinned-head-t9d",
                       "type": "block",
                       "content": {
                         "mod": "my-pinned-panes",
                         "props": {
-                          "terminal": "t75"
+                          "terminal": "t9d"
                         }
                       },
                       "size": {
@@ -982,16 +745,16 @@
                       }
                     },
                     {
-                      "id": "pinned-mid-t75",
+                      "id": "pinned-mid-t9d",
                       "type": "row",
                       "children": [
                         {
-                          "id": "pinned-left-t75",
+                          "id": "pinned-left-t9d",
                           "type": "block",
                           "content": {
                             "mod": "my-pinned-frame",
                             "props": {
-                              "terminal": "t75",
+                              "terminal": "t9d",
                               "edge": "side"
                             }
                           },
@@ -1000,20 +763,20 @@
                           }
                         },
                         {
-                          "id": "pinned-term-t75",
+                          "id": "pinned-term-t9d",
                           "type": "block",
                           "content": {
-                            "terminal": "t75"
+                            "terminal": "t9d"
                           },
                           "background": "canvas"
                         },
                         {
-                          "id": "pinned-right-t75",
+                          "id": "pinned-right-t9d",
                           "type": "block",
                           "content": {
                             "mod": "my-pinned-frame",
                             "props": {
-                              "terminal": "t75",
+                              "terminal": "t9d",
                               "edge": "side"
                             }
                           },
@@ -1025,12 +788,12 @@
                       "resizable": false
                     },
                     {
-                      "id": "pinned-foot-t75",
+                      "id": "pinned-foot-t9d",
                       "type": "block",
                       "content": {
                         "mod": "my-pinned-frame",
                         "props": {
-                          "terminal": "t75",
+                          "terminal": "t9d",
                           "edge": "bottom"
                         }
                       },
@@ -1053,7 +816,7 @@
         }
       ],
       "size": {
-        "px": 967
+        "px": 581
       },
       "min": 240,
       "max": 100000,
