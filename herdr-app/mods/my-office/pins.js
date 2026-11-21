@@ -11,7 +11,7 @@
 // select and resize nodes (applyView), which panel-rail runs when the space changes.
 //
 // shared: "pinned.panes" {space or "*": [{terminal, name, cwd, program, space, tab, own}]} (space
-// and tab: where it came from; own: started here, so it has no tab to go back to), "pinned.open" / "pinned.max" {space: bool}, "pinned.zoom"
+// and tab: where it came from; own: started here, so unpinning it puts it in the shown tab), "pinned.open" / "pinned.max" {space: bool}, "pinned.zoom"
 // {space: terminal}, "pinned.width" (the column's px while not maximised), "pinned.agents"
 // (pinned terminals that report a status, as agents() describes agents; see pollAgents).
 //
@@ -262,7 +262,8 @@ function keep(terminal, cx) {
 }
 
 // Take it out of the pins. One moved from a tab goes back to that tab (its labels put it
-// there; a tab that's gone becomes a new one), else to a new tab of the shown space.
+// there; a tab that's gone becomes a new one), one started here (split) into the shown tab,
+// else (an adopted orphan) to a new tab of the shown space.
 // That tab is then shown with the pane focused, as terminal.keep does (see reveal).
 export function unpin(terminal, restore = true) {
   const pinned = Object.values(all()).flat().find((x) => x.terminal === terminal);
@@ -272,11 +273,16 @@ export function unpin(terminal, restore = true) {
     if (kept.length) next[space] = kept;
   }
   save(next);
-  if (!restore || !pinned || pinned.own || panes().some((x) => x.terminal === terminal)) return;
-  if (!pinned.tab) return run("terminal.keep", { terminal });
+  if (!restore || !pinned || panes().some((x) => x.terminal === terminal)) return;
+  // One started here joins the shown tab (labelled with it, as one going back to its tab is). Its
+  // "herdr.pinned=own" label goes too: Herdr reads herdr.pinned as an agent pinned to the top of the lists.
+  const shown = spaces().find((s) => s.active), here = shown?.tabs.find((t) => t.active)?.id;
+  const tab = pinned.own ? here : pinned.tab;
+  const space = pinned.own ? shown?.id : pinned.space ?? shownSpace();
+  if (!tab || !space) return run("terminal.keep", { terminal });
   // Labels hold ids local to the terminal's machine: drop the app's "<machine>/" prefix.
   const local = (id) => id.slice(id.indexOf("/") + 1);
-  exec("hc", ["label", terminal, `herdr.space=${local(pinned.space)}`, `herdr.tab=${local(pinned.tab)}`])
+  exec("hc", ["label", terminal, `herdr.space=${local(space)}`, `herdr.tab=${local(tab)}`, ...(pinned.own ? ["herdr.pinned="] : [])])
     .then(() => exec("hc", ["keep", terminal])).catch(() => run("terminal.keep", { terminal }));
   setShared(REVEAL, { terminal, until: Date.now() + 5000 });
 }
@@ -297,7 +303,7 @@ export function reveal() {
 }
 
 // A shell of its own below the given pane, on that pane's machine, in its folder.
-// It lives only here: no tab shows it, and closing it ends it.
+// No tab shows it while it's pinned; unpinned, it joins the shown tab (see unpin).
 export function split(terminal, cwd, cx) {
   const space = activeSpace();
   const machine = terminal.includes("/") ? terminal.split("/")[0] : null;

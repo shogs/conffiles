@@ -798,91 +798,6 @@
               "gap": 8
             },
             {
-              "id": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
-              "type": "column",
-              "children": [
-                {
-                  "id": "pinned-card-t75",
-                  "type": "column",
-                  "children": [
-                    {
-                      "id": "pinned-head-t75",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-panes",
-                        "props": {
-                          "terminal": "t75"
-                        }
-                      },
-                      "size": {
-                        "px": 30
-                      }
-                    },
-                    {
-                      "id": "pinned-mid-t75",
-                      "type": "row",
-                      "children": [
-                        {
-                          "id": "pinned-left-t75",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t75",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        },
-                        {
-                          "id": "pinned-term-t75",
-                          "type": "block",
-                          "content": {
-                            "terminal": "t75"
-                          },
-                          "background": "canvas"
-                        },
-                        {
-                          "id": "pinned-right-t75",
-                          "type": "block",
-                          "content": {
-                            "mod": "my-pinned-frame",
-                            "props": {
-                              "terminal": "t75",
-                              "edge": "side"
-                            }
-                          },
-                          "size": {
-                            "px": 1
-                          }
-                        }
-                      ],
-                      "resizable": false
-                    },
-                    {
-                      "id": "pinned-foot-t75",
-                      "type": "block",
-                      "content": {
-                        "mod": "my-pinned-frame",
-                        "props": {
-                          "terminal": "t75",
-                          "edge": "bottom"
-                        }
-                      },
-                      "size": {
-                        "px": 10
-                      }
-                    }
-                  ],
-                  "background": "#00000000",
-                  "resizable": false
-                }
-              ],
-              "gap": 8
-            },
-            {
               "id": "pinned-sp-sp0b552cb73bd18d5b561967fd6d61dc54",
               "type": "column",
               "children": [
@@ -1044,6 +959,91 @@
                 }
               ],
               "gap": 8
+            },
+            {
+              "id": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
+              "type": "column",
+              "children": [
+                {
+                  "id": "pinned-card-t75",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "pinned-head-t75",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-panes",
+                        "props": {
+                          "terminal": "t75"
+                        }
+                      },
+                      "size": {
+                        "px": 30
+                      }
+                    },
+                    {
+                      "id": "pinned-mid-t75",
+                      "type": "row",
+                      "children": [
+                        {
+                          "id": "pinned-left-t75",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t75",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        },
+                        {
+                          "id": "pinned-term-t75",
+                          "type": "block",
+                          "content": {
+                            "terminal": "t75"
+                          },
+                          "background": "canvas"
+                        },
+                        {
+                          "id": "pinned-right-t75",
+                          "type": "block",
+                          "content": {
+                            "mod": "my-pinned-frame",
+                            "props": {
+                              "terminal": "t75",
+                              "edge": "side"
+                            }
+                          },
+                          "size": {
+                            "px": 1
+                          }
+                        }
+                      ],
+                      "resizable": false
+                    },
+                    {
+                      "id": "pinned-foot-t75",
+                      "type": "block",
+                      "content": {
+                        "mod": "my-pinned-frame",
+                        "props": {
+                          "terminal": "t75",
+                          "edge": "bottom"
+                        }
+                      },
+                      "size": {
+                        "px": 10
+                      }
+                    }
+                  ],
+                  "background": "#00000000",
+                  "resizable": false
+                }
+              ],
+              "gap": 8
             }
           ],
           "active": "pinned-sp-sp29a4cb82235a4259308f7f6d6e2879cf",
@@ -1053,7 +1053,7 @@
         }
       ],
       "size": {
-        "px": 627
+        "px": 967
       },
       "min": 240,
       "max": 100000,
@@ -1171,7 +1171,7 @@
                         }
                       },
                       "size": {
-                        "weight": 0.5664120316505432
+                        "weight": 0.9240801930427551
                       }
                     },
                     {
@@ -1184,12 +1184,12 @@
                         }
                       },
                       "size": {
-                        "weight": 1.4335875511169434
+                        "weight": 1.0759183168411255
                       }
                     }
                   ],
                   "size": {
-                    "px": 389
+                    "px": 409
                   },
                   "min": 220,
                   "max": 900,

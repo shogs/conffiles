@@ -146,7 +146,7 @@ export default class PinnedPanes extends View {
       .child(this.button(t, `pinned-global-${terminal}`, "mods/my-pinned-panes/pin-global.svg", global ? "Pinned to all spaces: pin to this space only" : "Pin to all spaces", () => toggleGlobal(terminal))
         // Yellow, so a pin across spaces stands apart from the accent pin of this space's.
         .when(global, b => b.text_color(t.ansi3)))
-      .when(!pin?.own, el => el.child(this.button(t, `pinned-unpin-${terminal}`, "mods/my-pane/pin.svg", "Unpin (back to its tab)", () => unpin(terminal)).text_color(t.accent)))
+      .child(this.button(t, `pinned-unpin-${terminal}`, "mods/my-pane/pin.svg", pin?.own ? "Unpin (into this tab)" : "Unpin (back to its tab)", () => unpin(terminal)).text_color(t.accent))
       .when(this.hovered, el => el
         .child(this.button(t, `pinned-split-${terminal}`, "mods/my-pane/split-down.svg", "Split down", (cx) => split(terminal, live?.cwd ?? pin?.cwd, cx)))
         .child(this.button(t, `pinned-zoom-${terminal}`, `mods/my-pane/${zoomed ? "unzoom" : "zoom"}.svg`, zoomed ? "Show all" : "Zoom", () => toggleZoom(terminal)))
