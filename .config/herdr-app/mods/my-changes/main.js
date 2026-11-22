@@ -1,12 +1,13 @@
 // The uncommitted changes of the shown space's repo, a diff per file, and a commit box.
-// It follows spaces, not focus: a worktree space shows its folder, any other its first terminal's.
+// It follows the focused terminal's folder; the header's pin (or p) ties it to the shown space
+// instead (its worktree or first terminal's folder).
 // With the keyboard (pane.go onto it, or my-changes.focus): j/k or arrows move and show each
 // file's diff, Enter opens a side-by-side diff (nvimdiff: HEAD | working copy) beside the pane
 // (Shift-Enter: in a new tab), ctrl-t opens git difftool (as lazygit), l opens the file to edit,
 // h hides the diff, Esc goes back.
 // Mouse: click shows a file's diff; double-click it (or its diff) opens git difftool (diff.tool);
 // right-click offers either.
-import { View, div } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list, ScrollHandle } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, run, nextCommand, props, shared, setShared, openOverlay } from "herdr";
 
@@ -14,7 +15,7 @@ import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, setting
 const KEYS = {
   j: "down", down: "down", k: "up", up: "up", g: "top", G: "bottom", "shift-g": "bottom",
   l: "edit", right: "edit", enter: "diff", return: "diff", "shift-enter": "tab", "shift-return": "tab",
-  h: "hide", left: "hide", escape: "back", q: "back", "ctrl-t": "difftool",
+  h: "hide", left: "hide", escape: "back", q: "back", "ctrl-t": "difftool", p: "pin",
 };
 // Reads write nothing under .git (no index refresh or lock, no fsmonitor cookie):
 // the folder watch would see it, and every refresh would start the next one.
@@ -72,12 +73,19 @@ export default class Changes extends View {
     cx.timer.every(10000, (cx) => this.refresh(cx));
   }
 
-  // Where the shown space is: its folder when that's a linked git worktree (a worktree space),
-  // else its first terminal's live folder (as the spaces sidebar has it). `check`: not known yet.
+  // What it shows. Pinned for this space (see pin): the folder it showed when pinned, kept through
+  // space switches. Unpinned: the live folder of the space's last focused terminal (a pane or a
+  // layout terminal block); before one there has had focus, the space's own folder when that's a
+  // linked git worktree, else its first terminal's. `check`: not known yet.
   location() {
     const space = spaces().find((s) => s.active);
     if (!space) return { cwd: null, on: null };
-    const on = space.machine ?? null, folder = space.folder || null;
+    const pin = this.pin(space);
+    if (pin) return { cwd: pin.cwd, on: pin.on ?? null };
+    const on = space.machine ?? null, folder = space.folder || null, f = focused();
+    this.followed ??= {};
+    if (f?.cwd && f.space === space.id) this.followed[space.id] = f.cwd;
+    if (this.followed[space.id]) return { cwd: this.followed[space.id], on };
     const linked = folder ? this.linked[JSON.stringify([on, folder])] : false;
     if (linked === undefined) return { cwd: null, on, check: folder };
     if (linked) return { cwd: folder, on };
@@ -122,6 +130,24 @@ export default class Changes extends View {
     setShared("panels.side", { ...shared("panels.side"), changes: side });
   }
 
+  // This space's pin, { cwd, on } (shared "panels.pin".changes, keyed by space id): each space has its own.
+  pin(space = spaces().find((s) => s.active)) {
+    const pin = space && shared("panels.pin")?.changes?.[space.id];
+    return pin?.cwd ? pin : null;
+  }
+
+  // The header's pin (or p): keep the shown space on the folder shown now, or follow the focused
+  // terminal again. Other spaces keep their own setting.
+  togglePin() {
+    const space = spaces().find((s) => s.active), shown = { cwd: this.where?.cwd, on: this.where?.on ?? null };
+    if (!space) return;
+    const pins = shared("panels.pin") ?? {}, mine = { ...(typeof pins.changes === "object" ? pins.changes : {}) };
+    if (this.pin(space)) delete mine[space.id];
+    else if (shown.cwd) mine[space.id] = shown;
+    else return;
+    setShared("panels.pin", { ...pins, changes: mine });
+  }
+
   arrive(cx) {
     this.typing = false;
     if (!this.files.some((f) => f.path === this.open) && this.files.length) this.pick(this.files[0].path, cx);
@@ -158,6 +184,7 @@ export default class Changes extends View {
       case "tab": this.diff(file, true); break;
       case "difftool": this.difftool(file); break;
       case "hide": if (this.open) this.pick(this.open, cx); break;
+      case "pin": this.togglePin(); break;
       case "back": {
         const pane = focused()?.pane;
         pane ? run("pane.focus", { pane }) : run("pane.go", { direction: "left" });
@@ -344,6 +371,14 @@ export default class Changes extends View {
       .child(div().flex_1().min_w(0).truncate().child(text));
   }
 
+  pinButton(t) {
+    const pinned = Boolean(this.pin());
+    return div().id("changes-pin").flex_none().p(3).rounded(4).cursor_pointer().when(pinned, (e) => e.bg(t.selected))
+      .text_color(pinned ? t.accent : t.muted).hover((s) => s.bg(t.hover).text_color(pinned ? t.accent : t.foreground))
+      .tooltip(pinned ? "Pinned to this folder in this space · click to follow the focused terminal" : "Following the focused terminal · click to pin this folder for this space")
+      .on_click(() => this.togglePin()).child(svg("mods/my-changes/pin.svg").size(13));
+  }
+
   render(cx) {
     if (this.here().key !== this.context) this.refresh(cx);
     const t = theme(), add = this.files.reduce((n, f) => n + f.add, 0), del = this.files.reduce((n, f) => n + f.del, 0);
@@ -357,6 +392,7 @@ export default class Changes extends View {
         .child(div().font_semibold().child("Changes"))
         .child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(`${this.files.length} files`))
         .child(div().flex_1()).child(div().text_size(11).text_color(t.ansi2).child(`+${add}`)).child(div().text_size(11).text_color(t.ansi1).child(`−${del}`))
+        .child(this.pinButton(t))
         .child(div().id("changes-side").flex_none().px(4).rounded(4).cursor_pointer().text_color(t.muted).hover(s => s.bg(t.hover).text_color(t.foreground))
           .on_click(() => this.flip()).child("⇄")))
       // overflow_y_scrollbar() wraps the list, so its flex sizing never reached the panel's layout.

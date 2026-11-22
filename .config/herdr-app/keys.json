@@ -67,7 +67,7 @@
     "ctrl-a c": "tab.new",
     "ctrl-a n": "tab.next",
     "ctrl-a s": "tab.next",
-    "ctrl-a p": "tab.prev",
+    "ctrl-a p": "panel-rail.pin-files",
     "ctrl-a z": "pane.zoom",
     "ctrl-a x": "pane.close",
     "ctrl-a k": "mod.open:picker",
@@ -82,7 +82,7 @@
     "ctrl-s c": "tab.new",
     "ctrl-s n": "tab.next",
     "ctrl-s s": "tab.next",
-    "ctrl-s p": "tab.prev",
+    "ctrl-s p": "panel-rail.pin-files",
     "ctrl-s z": "pane.zoom",
     "ctrl-s x": "pane.close",
     "ctrl-s k": "mod.open:picker",
@@ -147,8 +147,10 @@
   },
   "mod:my-files": {
     "ctrl-a f": "my-files.close",
+    "ctrl-a p": "my-files.pin",
     "ctrl-a x": "my-files.close",
     "ctrl-s f": "my-files.close",
+    "ctrl-s p": "my-files.pin",
     "ctrl-s x": "my-files.close",
     "ctrl-d": "my-files.page-down",
     "ctrl-u": "my-files.page-up"

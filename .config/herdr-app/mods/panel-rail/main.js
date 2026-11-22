@@ -59,6 +59,7 @@ export default class PanelRail extends View {
         else if (command === "spaces") this.focusSpaces(cx);
         else if (command === "pinned") this.pinnedKey(cx);
         else if (command === "pin") this.pinFocused(cx);
+        else if (command === "pin-files") this.pinFiles();
         else if (command === "pinned-max") toggleMax();
         else if (command === "pinned-max-here") { const f = focused(); if (!f?.pane && f?.terminal && visible().some(x => x.terminal === f.terminal)) toggleMax(); }
         else if (/^go-(left|right|up|down)$/.test(command)) this.go(command.slice(3), cx);
@@ -92,6 +93,24 @@ export default class PanelRail extends View {
   }
 
   // Pin the focused tab pane to this space's pinned view, or unpin the focused pinned pane.
+  // panel-rail.pin-files (ctrl-a p): pin the Files panel, for the shown space, to the focused
+  // terminal's folder (shown or not; shared "panels.pin".files, as mods/my-files reads it).
+  // Pressed again in the folder it's pinned to, unpins it. From the panel itself it's my-files.pin.
+  pinFiles() {
+    const space = spaces().find(s => s.active), f = focused();
+    if (!space) return;
+    const pins = shared("panels.pin") ?? {}, mine = { ...(pins.files && typeof pins.files === "object" ? pins.files : {}) };
+    const cwd = f?.space === space.id ? f.cwd : null, on = space.machine ?? null, name = (p) => p.split(/[\\/]/).pop() || p;
+    if (cwd && mine[space.id]?.cwd !== cwd) {
+      mine[space.id] = { cwd, on };
+      notify({ title: `Files pinned to ${name(cwd)}`, body: cwd, level: "info", timeout: 2500 });
+    } else if (mine[space.id]?.cwd) {
+      delete mine[space.id];
+      notify({ title: "Files unpinned", body: "Following the focused terminal", level: "info", timeout: 2500 });
+    } else return;
+    setShared("panels.pin", { ...pins, files: mine });
+  }
+
   pinFocused(cx) {
     const f = focused(), pane = f?.pane;
     // A pinned pane (a terminal block) has no pane: unpin it, back to its tab.

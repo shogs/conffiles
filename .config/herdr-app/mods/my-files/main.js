@@ -1,4 +1,5 @@
-// A lazy file browser for the shown space's folder (see location), with bounded read-only previews.
+// A lazy file browser for the focused terminal's folder (see location), with bounded read-only previews.
+// The header's pin (or p) ties it to the shown space instead (its worktree or first terminal's folder).
 // With the keyboard (pane.go onto it, or my-files.focus): j/k or arrows move, l expands a folder or previews a file
 // (j/k scroll a line, ctrl-d/ctrl-u half a page, g/G to an end, h/Esc go back),
 // h collapses it (or its parent), Enter opens a file in nvim or toggles a folder, Shift-Enter opens
@@ -15,7 +16,7 @@ const LINE = 18, MAX_CHARS = 400000;
 const KEYS = {
   j: "down", down: "down", k: "up", up: "up", g: "top", G: "bottom", "shift-g": "bottom",
   l: "right", right: "right", h: "left", left: "left", enter: "enter", return: "enter", "shift-enter": "tab", "shift-return": "tab", escape: "back", q: "back",
-  "ctrl-d": "page-down", "ctrl-u": "page-up",
+  "ctrl-d": "page-down", "ctrl-u": "page-up", p: "pin",
 };
 
 async function directory(path, on) {
@@ -61,6 +62,7 @@ export default class Files extends View {
         if (menu) { this.cursor = menu[2]; if (menu[1] === "nvim") this.edit(menu[2]); else this.show(menu[2], cx); cx.notify(); }
         else if (command === "focus") this.arrive(cx);
         else if (command === "close") this.closePanel();
+        else if (command === "pin") { this.togglePin(); cx.notify(); }
         else if (this.handle.is_focused() && Object.values(KEYS).includes(command)) { this.act(command, cx); cx.notify(); }
       }
     });
@@ -73,13 +75,19 @@ export default class Files extends View {
     cx.timer.every(10000, cx => this.refresh(cx));
   }
 
-  // Where the shown space is, as my-changes has it: its folder when that's a linked git worktree
-  // (a worktree space), else its first terminal's live folder. Focusing another pane or a pinned
-  // terminal doesn't move it. `check`: not known yet.
+  // What it shows. Pinned for this space (see pin): the folder it showed when pinned, kept through
+  // space switches. Unpinned: the live folder of the space's last focused terminal (a pane or a
+  // layout terminal block); before one there has had focus, the space's own folder when that's a
+  // linked git worktree, else its first terminal's. `check`: not known yet.
   location() {
-    const space = spaces().find(s => s.active);
+    const space = spaces().find((s) => s.active);
     if (!space) return { cwd: null, on: null };
-    const on = space.machine ?? null, folder = space.folder || null;
+    const pin = this.pin(space);
+    if (pin) return { cwd: pin.cwd, on: pin.on ?? null, space: space.id };
+    const on = space.machine ?? null, folder = space.folder || null, f = focused();
+    this.followed ??= {};
+    if (f?.cwd && f.space === space.id) this.followed[space.id] = f.cwd;
+    if (this.followed[space.id]) return { cwd: this.followed[space.id], on, space: space.id };
     const linked = folder ? this.linked[JSON.stringify([on, folder])] : false;
     if (linked === undefined) return { cwd: null, on, space: space.id, check: folder };
     if (linked) return { cwd: folder, on, space: space.id };
@@ -105,8 +113,9 @@ export default class Files extends View {
   // While the tree has the keyboard it stays on the folder it showed.
   here() {
     if (this.context && this.handle?.is_focused()) return { cwd: this.context.cwd, on: this.context.on, key: this.context.key };
+    // Keyed by folder alone: pinning or unpinning where it already is keeps the open folders.
     const where = this.location();
-    return { ...where, key: JSON.stringify(where) };
+    return { ...where, key: JSON.stringify([where.cwd, where.on, where.check ?? null]) };
   }
 
   // Its open key or ctrl-a x while it has the keyboard (keys.json mod:my-files): close this panel
@@ -122,6 +131,24 @@ export default class Files extends View {
   flip() {
     const side = props()?.side === "left" ? "right" : "left";
     setShared("panels.side", { ...shared("panels.side"), files: side });
+  }
+
+  // This space's pin, { cwd, on } (shared "panels.pin".files, keyed by space id): each space has its own.
+  pin(space = spaces().find((s) => s.active)) {
+    const pin = space && shared("panels.pin")?.files?.[space.id];
+    return pin?.cwd ? pin : null;
+  }
+
+  // The header's pin (or p): keep the shown space on the folder shown now, or follow the focused
+  // terminal again. Other spaces keep their own setting.
+  togglePin() {
+    const space = spaces().find((s) => s.active), shown = { cwd: this.root, on: this.on ?? null };
+    if (!space) return;
+    const pins = shared("panels.pin") ?? {}, mine = { ...(typeof pins.files === "object" ? pins.files : {}) };
+    if (this.pin(space)) delete mine[space.id];
+    else if (shown.cwd) mine[space.id] = shown;
+    else return;
+    setShared("panels.pin", { ...pins, files: mine });
   }
 
   arrive(cx) {
@@ -147,6 +174,7 @@ export default class Files extends View {
   }
 
   act(action, cx) {
+    if (action === "pin") { this.togglePin(); return; }
     if (this.file) { this.actFile(action); return; }
     const list = this.nav, i = list.findIndex(r => r.path === this.cursor), row = list[i];
     const to = n => { this.cursor = list[Math.max(0, Math.min(list.length - 1, i < 0 ? 0 : i + n))]?.path ?? null; };
@@ -352,6 +380,14 @@ export default class Files extends View {
     return out;
   }
 
+  pinButton(t) {
+    const pinned = Boolean(this.pin());
+    return div().id("files-pin").flex_none().p(3).rounded(4).cursor_pointer().when(pinned, el => el.bg(t.selected))
+      .text_color(pinned ? t.accent : t.muted).hover(s => s.bg(t.hover).text_color(pinned ? t.accent : t.foreground))
+      .tooltip(pinned ? "Pinned to this folder in this space · click to follow the focused terminal" : "Following the focused terminal · click to pin this folder for this space")
+      .on_click(() => this.togglePin()).child(svg("mods/my-files/pin.svg").size(13));
+  }
+
   render(cx) {
     if (this.here().key !== this.context?.key) this.refresh(cx);
     // Where the keyboard was before the panel (a tab pane, or a pinned terminal with no pane), for Esc.
@@ -365,6 +401,7 @@ export default class Files extends View {
         .when(Boolean(this.file), el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null); cx.notify(); }).child("←")))
         .child(div().font_semibold().child("Files"))
         .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? ""))
+        .child(this.pinButton(t))
         .child(div().id("files-side").flex_none().px(4).rounded(4).cursor_pointer().text_color(t.muted).hover(s => s.bg(t.hover).text_color(t.foreground))
           .on_click(() => this.flip()).child("⇄")))
       .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().track_scroll(this.scroll).p(6).children(this.rows("", 0, [], t))
