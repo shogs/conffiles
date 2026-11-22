@@ -1,0 +1,2 @@
+# Herdr layouts: strip per-space pinned panes on add (setup: scripts/herdr-layout-clean.py)
+.config/herdr-app/layouts/*.json filter=herdr-layout
