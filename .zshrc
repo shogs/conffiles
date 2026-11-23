@@ -161,3 +161,26 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME/bin:$PATH" ;;
 esac
 # pnpm end
+
+# herdr: closing a space's last terminal would close the space, which only closing the space
+# itself should do. In a Herdr terminal, exit / logout / ctrl-d on an empty line refuse when this
+# is the last terminal in its space's tabs (`builtin exit` still forces it). The Herdr mods guard
+# their close keys and buttons the same way (blocksClose in .config/herdr-app/mods/*/pins.js).
+if [[ -n $HC_TERMINAL_ID ]] && (( $+commands[herdr-app] && $+commands[jq] )); then
+  _herdr_last_in_space() {
+    (( ZSH_SUBSHELL == 0 )) || return 1
+    herdr-app ls 2>/dev/null | jq -e --arg t "$HC_TERMINAL_ID" \
+      '[.spaces[] | select(any(.tabs[].terminals[]; .terminal == $t)) | [.tabs[].terminals[]] | length] | .[0] == 1' >/dev/null 2>&1
+  }
+  _herdr_refuse_msg='Last terminal in this space: close the space to remove it (builtin exit forces it).'
+  exit()   { if _herdr_last_in_space; then print -u2 -- "$_herdr_refuse_msg"; return 1; fi; builtin exit "$@"; }
+  logout() { if _herdr_last_in_space; then print -u2 -- "$_herdr_refuse_msg"; return 1; fi; builtin logout "$@"; }
+  setopt IGNORE_EOF
+  _herdr_eof() {
+    if [[ -n $BUFFER ]]; then zle delete-char-or-list
+    elif _herdr_last_in_space; then zle -M "$_herdr_refuse_msg"
+    else builtin exit; fi
+  }
+  zle -N _herdr_eof
+  bindkey '^D' _herdr_eof
+fi

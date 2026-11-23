@@ -11,7 +11,7 @@ import { div, svg, setZoom } from "./zoom.js";
 import { agents, terminals, spaces, panes, shared, run, setAgentOrder, settings, props, layout } from "herdr";
 import * as A from "./art.js";
 import * as D from "./decor.js";
-import { withPinnedAgents } from "./pins.js";
+import { withPinnedAgents, focusPinned } from "./pins.js";
 
 // Real weather in the windows. Off by default: it sends your IP address to ipapi.co for a
 // rough location, then asks Open-Meteo for the current conditions there.
@@ -450,7 +450,7 @@ export default class Office extends View {
     const overtime = st === "working" && tab?.working_since && Date.now() - tab.working_since > MUGS_AFTER;
     const plate = a ? this.plate(a) : null;
     return div().id(`desk-${i}`).absolute().left(pos.x).top(pos.y - A.BOX * P).w(A.SLOT * P).h(A.BOX * P + 28)
-      .when(Boolean(a), (el) => el.cursor_pointer().on_click(() => run("pane.focus", a.pane ? { pane: a.pane } : { terminal: a.address })))
+      .when(Boolean(a), (el) => el.cursor_pointer().on_click((_e, cx) => (a.pane ? run("pane.focus", { pane: a.pane }) : focusPinned(a.address, cx))))
       .children([
         ...A.rects(A.DESK.chair, pal), ...A.rects(A.DESK.desk, pal),
         ...(overtime ? A.rects(A.MUG_PILE, pal) : []),
@@ -657,7 +657,7 @@ export default class Office extends View {
     return div().id(`person-${a.address}`).absolute().left(at.x).top(at.y - A.BOX * P).w(A.PERSON * P).h(A.BOX * P)
       .transition("left", { duration: at.dur, easing: "ease-in-out" })
       .transition("top", { duration: at.dur, easing: "ease-in-out" })
-      .cursor_pointer().on_click(() => run("pane.focus", a.pane ? { pane: a.pane } : { terminal: a.address }))
+      .cursor_pointer().on_click((_e, cx) => (a.pane ? run("pane.focus", { pane: a.pane }) : focusPinned(a.address, cx)))
       .on_hover((h, cx) => {
         if (h) this.hovered = a.address;
         else if (this.hovered === a.address) this.hovered = null;

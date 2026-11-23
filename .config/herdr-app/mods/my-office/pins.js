@@ -356,6 +356,27 @@ export function pollAgents(cx) {
   });
 }
 
+// Go to a pinned terminal from elsewhere (an agent list's row): its card only shows in its own
+// space's pinned view (a global pin's in every space), so select that space first, open the view
+// (and drop a zoom on another card), then focus it. The blocks show once the layout applies, so
+// focusing is tried again a moment later. Not pinned: plain pane.focus.
+export function focusPinned(terminal, cx) {
+  const key = keyOf(terminal);
+  if (!key) return run("pane.focus", { terminal });
+  const view = key === GLOBAL ? activeSpace() : key;
+  if (key !== GLOBAL && activeSpace() !== key) {
+    const pin = all()[key].find((x) => x.terminal === terminal);
+    const to = spaces().find((s) => s.id === pin?.space && groupOf(s.id) === key) ?? spaces().find((s) => groupOf(s.id) === key);
+    if (to) run("space.select", { id: to.id });
+  }
+  put(OPEN, view, true);
+  if (zoomOf(view) && zoomOf(view) !== terminal) put(ZOOM, view, null);
+  applyView(view);
+  const go = () => { if (focused()?.terminal !== terminal) run("pane.focus", { terminal }); };
+  go();
+  if (cx?.timer) for (const ms of [120, 300]) cx.timer.after(ms, go);
+}
+
 // agents() plus the pinned agents, each after its space's others (so it joins that group).
 export function withPinnedAgents(list) {
   list = [...list];
@@ -411,6 +432,12 @@ export function blocksClose({ pane, tab, space }) {
   const s = spaces().find((x) => x.id === space || x.tabs.some((t) => t.id === tab));
   if (!s) return false;
   if (!space && (s.tabs.length > 1 || (pane && s.tabs[0].panes > 1))) return false;
+  // A space's last pane or tab: closing it would close the space, which only closing the space
+  // itself should do (the shell's exit / ctrl-d are guarded the same way, see ~/.zshrc).
+  if (!space) {
+    notify({ title: `Last ${pane ? "pane" : "tab"} in this space`, body: "Closing it would close the space. Close the space itself to remove it.", level: "warning" });
+    return true;
+  }
   const key = groupOf(s.id);
   if (!list(key).length || spaces().some((x) => x.id !== s.id && groupOf(x.id) === key)) return false;
   notify({ title: "This space has pinned terminals", body: "Unpin or close them first.", level: "warning" });

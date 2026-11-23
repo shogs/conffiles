@@ -11,7 +11,7 @@
 // split-down and close are the pane keys (see paneKey); go-left/right/up/down are pane.go (see go);
 // swap-left/right/up/down are pane.swap, or on a pinned pane move it up or down (see swapKey);
 // last-pane goes back to the pane (tab or pinned) used before. close, close-tab (cmd-w) and eof
-// (ctrl-d) refuse to close a space's last pane while it has pins (blocksClose).
+// (ctrl-d) refuse to close a space's last pane or tab: only closing the space removes it (blocksClose).
 import { View, div, svg } from "gpui-kit";
 import { v_flex } from "gpui-base";
 import { spaces, run, theme, shared, setShared, layout, nextCommand, focused, panes, exec, notify, openOverlay } from "herdr";
@@ -136,7 +136,7 @@ export default class PanelRail extends View {
     else if (command === "pane.close") close(terminal);
   }
 
-  // close-tab (cmd-w in glass): tab.close, unless it's the last tab of a space with pins.
+  // close-tab (cmd-w in glass): tab.close, unless it's the space's last tab.
   closeTab() {
     const tab = focused()?.tab;
     if (tab && blocksClose({ tab })) return;
@@ -144,7 +144,7 @@ export default class PanelRail extends View {
   }
 
   // eof (ctrl-d in glass, which takes the key from every terminal): a shell's ctrl-d would end it,
-  // so in the last pane of a space with pins it's refused; anything else gets ctrl-d typed.
+  // so in a space's last pane it's refused; anything else gets ctrl-d typed.
   eof() {
     const f = focused();
     if (!f?.terminal) return;

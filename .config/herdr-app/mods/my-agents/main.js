@@ -3,7 +3,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, window, layout } from "herdr";
-import { withPinnedAgents } from "./pins.js";
+import { withPinnedAgents, focusPinned } from "./pins.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -306,7 +306,7 @@ export default class Agents extends View {
           .items_center()
           .gap(4)
           .hover((s) => s.bg(t.hover))
-          .on_click(() => run("pane.focus", a.pane ? { pane: a.pane } : { terminal: a.address }))
+          .on_click((_e, cx) => (a.pane ? run("pane.focus", { pane: a.pane }) : focusPinned(a.address, cx)))
           .child(div().flex_1().min_w(0).whitespace_nowrap().text_right().text_color(t.muted).child(String(i + 1)))
           .child(h_flex().w(14).flex_none().items_center().justify_center().child(this.status(t, a, true)));
       }
@@ -350,7 +350,7 @@ export default class Agents extends View {
           else if (this.hovered === a.address) this.hovered = null;
           cx.notify();
         })
-        .on_click(() => run("pane.focus", a.pane ? { pane: a.pane } : { terminal: a.address }))
+        .on_click((_e, cx) => (a.pane ? run("pane.focus", { pane: a.pane }) : focusPinned(a.address, cx)))
         .when(Boolean(pic), el => el.child(div().id(`agent-fold-${a.address}`)
           .when(subs.length > 0, el => el.on_click((_e, cx) => {
             cx.stop_propagation();
