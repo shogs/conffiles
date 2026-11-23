@@ -31,8 +31,7 @@
   },
   "git_panel": {
     "dock": "left",
-    "tree_view": true,
-    "sort_by_path": false
+    "tree_view": true
   },
   "context_servers": {
     "mcp-server-context7": {
@@ -43,14 +42,17 @@
     }
   },
   "agent": {
-    "sidebar_side": "left",
     "dock": "right",
     "default_model": {
       "provider": "zed.dev",
       "model": "claude-sonnet-4"
     }
   },
-  "theme": "Catppuccin Mocha",
+  "theme": {
+    "mode": "system",
+    "light": "Ayu Light",
+    "dark": "Catppuccin Mocha"
+  },
   "buffer_font_size": 13.0,
   "vim_mode": true,
   "languages": {
