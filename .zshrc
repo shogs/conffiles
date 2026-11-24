@@ -184,3 +184,9 @@ if [[ -n $HC_TERMINAL_ID ]] && (( $+commands[herdr-app] && $+commands[jq] )); th
   zle -N _herdr_eof
   bindkey '^D' _herdr_eof
 fi
+
+# Added by Kiri: its docker and kiri commands (kiri setup --uninstall removes this)
+case ":$PATH:" in *":$HOME/.kiri/bin:"*) ;; *) export PATH="$PATH:$HOME/.kiri/bin" ;; esac
+
+
+export PATH="$HOME/go/bin:$PATH"
